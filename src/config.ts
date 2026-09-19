@@ -33,6 +33,9 @@ export const DEFAULT_MODEL = DEFAULT_MODELS.typesafe;
 export const DEFAULT_MAX_STATE_TOKENS = 24_000;
 export const MIN_STATE_TOKENS = 2_000;
 export const MAX_STATE_TOKENS = 30_000;
+/** Gated rules answering within this distance of their threshold get a second ask. */
+export const DEFAULT_BORDERLINE_MARGIN = 0.1;
+export const MAX_BORDERLINE_MARGIN = 0.3;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -108,6 +111,11 @@ export function validateConfigDocument(raw: unknown, warnings: string[] = []): C
         );
       }
       doc.maxStateTokens = value;
+    } else if (key === "borderlineMargin") {
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > MAX_BORDERLINE_MARGIN) {
+        throw new ConfigError(`borderlineMargin must be a number between 0 and ${MAX_BORDERLINE_MARGIN}`);
+      }
+      doc.borderlineMargin = value;
     } else if (key === "ignore") {
       if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
         throw new ConfigError("ignore must be a list of glob strings");
@@ -147,6 +155,7 @@ export function resolveConfig(doc: ConfigDocument): ResolvedConfig {
     provider: doc.provider ?? "typesafe",
     model: doc.model ?? DEFAULT_MODELS[doc.provider ?? "typesafe"],
     maxStateTokens: doc.maxStateTokens ?? DEFAULT_MAX_STATE_TOKENS,
+    borderlineMargin: doc.borderlineMargin ?? DEFAULT_BORDERLINE_MARGIN,
     ignore: doc.ignore ?? DEFAULT_IGNORE,
     comment: doc.comment ?? true,
     rules,

@@ -142,3 +142,103 @@ test("an API failure surfaces instead of passing silently", async () => {
     // The SDK raises its own API error type; the message carries the status.
     /500/);
 });
+/** A fake endpoint that answers with the probability scripted for each successive call. */
+function scriptedEndpoint(calls, probabilities) {
+    return async (input, init) => {
+        const body = JSON.parse(String(init?.body));
+        calls.push({ url: String(input), headers: (init?.headers ?? {}), body });
+        const probability = probabilities[calls.length - 1] ?? 0.1;
+        const answers = {};
+        for (const [name, question] of Object.entries(body.questions)) {
+            const value = name === "danger-sensitive-area" ? probability : 0.1;
+            answers[name] =
+                question.type === "noul"
+                    ? { type: "noul", noul: value }
+                    : { type: "score", score: value * 2, confidence: 0.9 };
+        }
+        return new Response(JSON.stringify({ model: "jev-test", answers, usage: { input_tokens: 900, output_tokens: 0 } }), { status: 200, headers: { "content-type": "application/json" } });
+    };
+}
+test("a gated rule near its threshold gets a second ask and the mean decides", async () => {
+    const calls = [];
+    const outcome = await runReview({
+        pr: pullRequest(),
+        files,
+        config: resolveConfig(validateConfigDocument({})),
+        apiKey: "test-key",
+        fetchImpl: scriptedEndpoint(calls, [0.55, 0.65]),
+    });
+    assert.equal(calls.length, 2);
+    assert.deepEqual(Object.keys(calls[1]?.body.questions ?? {}), ["danger-sensitive-area"]);
+    const decision = outcome.decisions.find((entry) => entry.name === "danger-sensitive-area");
+    assert.deepEqual(decision?.samples, [0.55, 0.65]);
+    assert.ok(Math.abs((decision?.probability ?? 0) - 0.6) < 1e-12);
+    assert.equal(decision?.failed, true, "the mean at the threshold fails the gate");
+    assert.deepEqual(outcome.failedGates, ["danger-sensitive-area"]);
+    assert.equal(outcome.inputTokens, 1800, "both asks count toward the token total");
+    assert.ok(Math.abs(outcome.costUSD - costUSD(1800)) < 1e-12);
+});
+test("a second ask that lands below the threshold clears the gate", async () => {
+    const calls = [];
+    const outcome = await runReview({
+        pr: pullRequest(),
+        files,
+        config: resolveConfig(validateConfigDocument({})),
+        apiKey: "test-key",
+        fetchImpl: scriptedEndpoint(calls, [0.58, 0.5]),
+    });
+    assert.equal(calls.length, 2);
+    const decision = outcome.decisions.find((entry) => entry.name === "danger-sensitive-area");
+    assert.ok(Math.abs((decision?.probability ?? 0) - 0.54) < 1e-12);
+    assert.equal(decision?.exceeded, false);
+    assert.deepEqual(outcome.failedGates, []);
+    assert.equal(outcome.passed, true);
+});
+test("a rule outside the margin keeps the single batched ask", async () => {
+    const calls = [];
+    const outcome = await runReview({
+        pr: pullRequest(),
+        files,
+        config: resolveConfig(validateConfigDocument({})),
+        apiKey: "test-key",
+        fetchImpl: scriptedEndpoint(calls, [0.8]),
+    });
+    assert.equal(calls.length, 1);
+    assert.equal(outcome.decisions.find((entry) => entry.name === "danger-sensitive-area")?.samples, undefined);
+});
+test("borderlineMargin 0 disables the second ask", async () => {
+    const calls = [];
+    const outcome = await runReview({
+        pr: pullRequest(),
+        files,
+        config: resolveConfig(validateConfigDocument({ borderlineMargin: 0 })),
+        apiKey: "test-key",
+        fetchImpl: scriptedEndpoint(calls, [0.55]),
+    });
+    assert.equal(calls.length, 1);
+    assert.equal(outcome.decisions.find((entry) => entry.name === "danger-sensitive-area")?.probability, 0.55);
+});
+test("a failed second ask keeps the first answer instead of failing the run", async () => {
+    const calls = [];
+    const healthyFirst = scriptedEndpoint(calls, [0.58]);
+    let call = 0;
+    const fetchImpl = async (input, init) => {
+        call += 1;
+        if (call > 1)
+            return new Response("nope", { status: 500 });
+        return healthyFirst(input, init);
+    };
+    const outcome = await runReview({
+        pr: pullRequest(),
+        files,
+        config: resolveConfig(validateConfigDocument({})),
+        apiKey: "test-key",
+        fetchImpl,
+        retry: { maxRetries: 0 },
+    });
+    assert.equal(call, 2, "the second ask was attempted");
+    const decision = outcome.decisions.find((entry) => entry.name === "danger-sensitive-area");
+    assert.equal(decision?.probability, 0.58);
+    assert.equal(decision?.samples, undefined);
+    assert.equal(decision?.exceeded, false);
+});

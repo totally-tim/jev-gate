@@ -8,6 +8,7 @@ test("empty documents resolve to the built-in defaults", () => {
   assert.ok(config.rules.length >= 7);
   assert.equal(config.rules.filter((rule) => rule.gate).length, 4);
   assert.equal(config.comment, true);
+  assert.equal(config.borderlineMargin, 0.1);
 });
 
 test("rule overrides replace gate and threshold", () => {
@@ -61,6 +62,16 @@ test("edge thresholds produce warnings instead of errors", () => {
   const clean: string[] = [];
   validateConfigDocument({ rules: { "breaking-change": { threshold: 0.6 } } }, clean);
   assert.deepEqual(clean, []);
+});
+
+test("borderlineMargin accepts the sane band and rejects the rest", () => {
+  const config = resolveConfig(validateConfigDocument({ borderlineMargin: 0.25 }));
+  assert.equal(config.borderlineMargin, 0.25);
+  assert.equal(resolveConfig(validateConfigDocument({ borderlineMargin: 0 })).borderlineMargin, 0);
+
+  assert.throws(() => validateConfigDocument({ borderlineMargin: 0.31 }), ConfigError);
+  assert.throws(() => validateConfigDocument({ borderlineMargin: -0.1 }), ConfigError);
+  assert.throws(() => validateConfigDocument({ borderlineMargin: "0.1" }), ConfigError);
 });
 
 test("unknown rule names and settings are rejected", () => {

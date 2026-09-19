@@ -7986,7 +7986,7 @@ var RULE_DEFINITIONS = [
     title: "Touches security-sensitive logic",
     kind: "noul",
     gate: true,
-    threshold: 0.5,
+    threshold: 0.6,
     instructions: "This diff in `files` changes security-sensitive logic, such as authentication, authorization, session or token handling, cryptography like hashing or randomness, payment flows, handling of personal data, or database migrations. A change is sensitive when a mistake could weaken a protection, leak data, or corrupt data, not merely when the file sits near such code. Tests and documentation alone are not sensitive."
   },
   {
@@ -8019,7 +8019,7 @@ var RULE_DEFINITIONS = [
     kind: "score",
     gate: false,
     threshold: 0.7,
-    instructions: "How weak are the tests that this diff adds or changes? Judge only tests present in the diff. If the diff adds or changes no tests, this is level 0. Level 0: tests pin specific observable behavior or outputs. Level 1: tests assert something, but several different behaviors would still pass them. Level 2: tests mostly assert that code runs, mirror the implementation, or snapshot without intent.",
+    instructions: "How weak are the tests that this diff adds or changes? Judge only tests present in the diff. If the diff adds or changes no tests, answer level 0: this rule grades the tests a diff writes, it does not ask for missing ones, and a diff without test changes is not weak here. When the diff does add or change tests, rate only those tests. Level 0: tests pin specific observable behavior or outputs. Level 1: tests assert something, but several different behaviors would still pass them. Level 2: tests mostly assert that code runs, mirror the implementation, or snapshot without intent.",
     rubric: [
       "Tests assert specific observable behavior or outputs",
       "Tests assert something, but several different behaviors would still pass them",
@@ -8144,6 +8144,8 @@ var DEFAULT_MODEL = DEFAULT_MODELS.typesafe;
 var DEFAULT_MAX_STATE_TOKENS = 24e3;
 var MIN_STATE_TOKENS = 2e3;
 var MAX_STATE_TOKENS = 3e4;
+var DEFAULT_BORDERLINE_MARGIN = 0.1;
+var MAX_BORDERLINE_MARGIN = 0.3;
 function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -8207,6 +8209,11 @@ function validateConfigDocument(raw, warnings = []) {
         );
       }
       doc.maxStateTokens = value;
+    } else if (key === "borderlineMargin") {
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > MAX_BORDERLINE_MARGIN) {
+        throw new ConfigError(`borderlineMargin must be a number between 0 and ${MAX_BORDERLINE_MARGIN}`);
+      }
+      doc.borderlineMargin = value;
     } else if (key === "ignore") {
       if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
         throw new ConfigError("ignore must be a list of glob strings");
@@ -8244,6 +8251,7 @@ function resolveConfig(doc) {
     provider: doc.provider ?? "typesafe",
     model: doc.model ?? DEFAULT_MODELS[doc.provider ?? "typesafe"],
     maxStateTokens: doc.maxStateTokens ?? DEFAULT_MAX_STATE_TOKENS,
+    borderlineMargin: doc.borderlineMargin ?? DEFAULT_BORDERLINE_MARGIN,
     ignore: doc.ignore ?? DEFAULT_IGNORE,
     comment: doc.comment ?? true,
     rules,
@@ -8303,7 +8311,8 @@ function detail(decision) {
   const level = decision.kind === "score" && decision.level !== void 0 && decision.levels !== void 0 ? ` (expected level ${decision.level.toFixed(2)} of ${decision.levels - 1})` : "";
   const kind = decision.failed ? "failed" : "warn";
   const probability = decision.probability === null ? "n/a" : percent(decision.probability);
-  return `- \`${decision.name}\` ${kind} at ${probability}${level}: ${decision.title}.`;
+  const asks = decision.samples !== void 0 && decision.samples.length > 1 ? ` (two asks: ${decision.samples.map(percent).join(", ")})` : "";
+  return `- \`${decision.name}\` ${kind} at ${probability}${asks}${level}: ${decision.title}.`;
 }
 function renderBody(outcome, previous) {
   const previousByName = new Map(
@@ -8720,21 +8729,34 @@ async function runReview(input) {
     throw new Error("no rules are enabled; enable at least one rule in the config");
   }
   const { state, truncatedPaths } = buildState(input.pr, input.files, input.config);
-  const questions = buildQuestions(enabled);
-  const response = await runJevReview({
+  const baseRequest = {
     provider: input.config.provider,
     apiKey: input.apiKey,
     model: input.config.model,
     state,
-    questions,
     baseURL: input.baseURL,
     fetchImpl: input.fetchImpl,
     timeoutMs: input.timeoutMs,
     signal: input.signal,
     retry: input.retry,
     app: input.config.openrouter
-  });
+  };
+  const response = await runJevReview({ ...baseRequest, questions: buildQuestions(enabled) });
   const decisions = evaluate(enabled, response.answers);
+  let inputTokens = response.inputTokens;
+  let outputTokens = response.outputTokens;
+  let latencyMs = response.latencyMs;
+  const borderline = borderlineRules(enabled, decisions, input.config.borderlineMargin);
+  if (borderline.length > 0) {
+    try {
+      const second = await runJevReview({ ...baseRequest, questions: buildQuestions(borderline) });
+      inputTokens += second.inputTokens;
+      outputTokens += second.outputTokens;
+      latencyMs += second.latencyMs;
+      mergeSecondAsk(decisions, evaluate(borderline, second.answers));
+    } catch {
+    }
+  }
   const failedGates = decisions.filter((decision) => decision.failed).map((decision) => decision.name);
   const erroredGates = decisions.filter((decision) => decision.gate && decision.error !== null).map((decision) => decision.name);
   return {
@@ -8744,10 +8766,10 @@ async function runReview(input) {
     prNumber: input.pr.number,
     model: response.model,
     rulesHash: rulesHashFor(enabled),
-    latencyMs: response.latencyMs,
-    inputTokens: response.inputTokens,
-    outputTokens: response.outputTokens,
-    costUSD: costUSD(response.inputTokens),
+    latencyMs,
+    inputTokens,
+    outputTokens,
+    costUSD: costUSD(inputTokens),
     ranAt: (/* @__PURE__ */ new Date()).toISOString(),
     truncated: state.truncated || truncatedPaths.length > 0,
     decisions,
@@ -8755,6 +8777,32 @@ async function runReview(input) {
     failedGates,
     erroredGates
   };
+}
+function borderlineRules(rules, decisions, margin) {
+  if (margin <= 0) return [];
+  const byName = new Map(decisions.map((decision) => [decision.name, decision]));
+  return rules.filter((rule) => {
+    const decision = byName.get(rule.name);
+    return rule.gate && decision !== void 0 && decision.error === null && decision.probability !== null && Math.abs(decision.probability - rule.threshold) <= margin;
+  });
+}
+function mergeSecondAsk(decisions, second) {
+  const byName = new Map(second.map((decision) => [decision.name, decision]));
+  for (let index = 0; index < decisions.length; index += 1) {
+    const decision = decisions[index];
+    const again = byName.get(decision.name);
+    if (again === void 0 || again.error !== null || again.probability === null || decision.probability === null) {
+      continue;
+    }
+    const probability = (decision.probability + again.probability) / 2;
+    decisions[index] = {
+      ...decision,
+      probability,
+      samples: [decision.probability, again.probability],
+      exceeded: probability >= decision.threshold,
+      failed: decision.gate && probability >= decision.threshold
+    };
+  }
 }
 
 // src/action.ts

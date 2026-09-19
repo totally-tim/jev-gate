@@ -58,6 +58,7 @@ export interface ConfigDocument {
   provider?: Provider;
   model?: string;
   maxStateTokens?: number;
+  borderlineMargin?: number;
   ignore?: string[];
   comment?: boolean;
   rules?: Record<string, RuleConfigOverride>;
@@ -73,6 +74,8 @@ export interface ResolvedConfig {
   provider: Provider;
   model: string;
   maxStateTokens: number;
+  /** Distance from the threshold inside which a gated rule gets a second ask, 0..0.3. */
+  borderlineMargin: number;
   ignore: readonly string[];
   comment: boolean;
   rules: readonly ResolvedRule[];
@@ -95,6 +98,11 @@ export interface RuleDecision {
   levels?: number;
   /** Reported confidence for score rules. */
   confidence?: number;
+  /**
+   * Gated rules that landed within `borderlineMargin` of the threshold are asked twice.
+   * This carries the individual asks, first first; `probability` is their mean.
+   */
+  samples?: number[];
   /** Probability at or above the threshold. */
   exceeded: boolean;
   /** Exceeded and gating; this is what fails the check. */

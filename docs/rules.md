@@ -41,6 +41,13 @@ should fail loudly and rarely: a false "contains secrets" verdict costs a look f
 human, a false negative costs a leaked key. Advisory rules can sit lower because a warning
 does not block anything.
 
+Run-to-run noise made verdicts near the line a coin flip (up to 10 points of spread on one
+boundary sample in the first suite run), so a gated rule answering within `borderlineMargin`
+of its threshold is asked again and the two asks are averaged before the verdict; set
+`borderlineMargin: 0` to turn that off. The margin treats the symptom at the decision point.
+The threshold still has to separate the groups you care about; averaging does not fix a rule
+that answers 50/50 on both.
+
 The built-in defaults sit inside the 0.2 to 0.8 band that the bench flags as thinly
 populated. They separate obvious cases, but treat them as provisional until you calibrate
 them on your own samples. For the three-level Score rubrics, 0.70 fires at an expected level

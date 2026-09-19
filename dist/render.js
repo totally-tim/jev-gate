@@ -53,7 +53,10 @@ function detail(decision) {
         : "";
     const kind = decision.failed ? "failed" : "warn";
     const probability = decision.probability === null ? "n/a" : percent(decision.probability);
-    return `- \`${decision.name}\` ${kind} at ${probability}${level}: ${decision.title}.`;
+    const asks = decision.samples !== undefined && decision.samples.length > 1
+        ? ` (two asks: ${decision.samples.map(percent).join(", ")})`
+        : "";
+    return `- \`${decision.name}\` ${kind} at ${probability}${asks}${level}: ${decision.title}.`;
 }
 function renderBody(outcome, previous) {
     const previousByName = new Map((previous?.decisions ?? []).map((decision) => [decision.name, decision.probability]));

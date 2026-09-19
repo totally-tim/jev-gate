@@ -15,7 +15,7 @@ export const RULE_DEFINITIONS = [
         title: "Touches security-sensitive logic",
         kind: "noul",
         gate: true,
-        threshold: 0.5,
+        threshold: 0.6,
         instructions: "This diff in `files` changes security-sensitive logic, such as authentication, authorization, session or token handling, cryptography like hashing or randomness, payment flows, handling of personal data, or database migrations. A change is sensitive when a mistake could weaken a protection, leak data, or corrupt data, not merely when the file sits near such code. Tests and documentation alone are not sensitive.",
     },
     {
@@ -48,7 +48,7 @@ export const RULE_DEFINITIONS = [
         kind: "score",
         gate: false,
         threshold: 0.7,
-        instructions: "How weak are the tests that this diff adds or changes? Judge only tests present in the diff. If the diff adds or changes no tests, this is level 0. Level 0: tests pin specific observable behavior or outputs. Level 1: tests assert something, but several different behaviors would still pass them. Level 2: tests mostly assert that code runs, mirror the implementation, or snapshot without intent.",
+        instructions: "How weak are the tests that this diff adds or changes? Judge only tests present in the diff. If the diff adds or changes no tests, answer level 0: this rule grades the tests a diff writes, it does not ask for missing ones, and a diff without test changes is not weak here. When the diff does add or change tests, rate only those tests. Level 0: tests pin specific observable behavior or outputs. Level 1: tests assert something, but several different behaviors would still pass them. Level 2: tests mostly assert that code runs, mirror the implementation, or snapshot without intent.",
         rubric: [
             "Tests assert specific observable behavior or outputs",
             "Tests assert something, but several different behaviors would still pass them",

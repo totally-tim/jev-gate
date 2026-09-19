@@ -64,6 +64,31 @@ wording moved the boundary.
   (`danger-deleted-tests` on the kitchen-sink control) and the rest by less. No batch effect
   was detectable at this resolution.
 
+## Second measurements, 2026-09-19, jev-1.13.0, rules `ecc13761bf17`
+
+Recorded after acting on the first review: `danger-sensitive-area` moved to a 0.60 gate,
+`test-meaningfulness` was reworded around its no-tests clause, and gated rules answering
+within `borderlineMargin` of the threshold are now asked twice and averaged.
+
+- `test-meaningfulness` on diffs that change no tests fell from 79 to 85 percent to 3 to 47
+  percent, all below its 0.70 advisory threshold; the no-tests clause now holds. Diffs that
+  change tests still separate: `weaken-assertion` 96.5, `delete-test-only` 75.5,
+  `delete-with-feature` 25.3.
+- `sensitive-area/noop-auth-refactor.diff` scored 47.5 on `danger-sensitive-area`, now 12.5
+  points below the 0.60 gate instead of a near miss at the old 0.50. Designed positives
+  scored 89 to 98 on the rules they probe.
+- `sensitive-area/session-ttl.diff` still crosses `breaking-change` (61.5 against 60), and
+  `sensitive-area/md5-swap.diff` scores 70.0 there; both were called out in the first
+  measurements and remain the cases to watch.
+- Two runs per sample: the largest run-to-run spread was 6.5 points (`test-meaningfulness` on
+  `md5-swap`), the rest at or under 6 points. Part of that drop against the first run's 10
+  points is the averaging: borderline gated answers are already averaged before a run is
+  recorded.
+- Observation outside the labeled axes: `secret-material/public-key.diff` scores 93.5 on
+  `danger-sensitive-area` because it adds a PEM public-key constant to an auth file. The
+  suite labels it only for `danger-secret-material`, where it scores 7.5, below. Treat it as
+  a candidate false positive for the sensitive-area wording, not a passing case.
+
 ## Growing the suite
 
 The target is 10 to 15 samples per gated rule, then 100 to 150 real merged pull requests

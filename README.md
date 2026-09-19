@@ -52,7 +52,7 @@ check at or above their threshold; advisory rules report the same number and nev
 
 | Rule | Kind | Default | Threshold | The question it asks |
 | --- | --- | --- | ---: | --- |
-| `danger-sensitive-area` | Noul | gate | 0.50 | Does the diff change security-sensitive logic: authentication, authorization, sessions or tokens, payments, personal data, or migrations? |
+| `danger-sensitive-area` | Noul | gate | 0.60 | Does the diff change security-sensitive logic: authentication, authorization, sessions or tokens, payments, personal data, or migrations? |
 | `danger-deleted-tests` | Noul | gate | 0.60 | Does the diff delete, disable, or weaken existing tests instead of updating them with the behavior they cover? |
 | `danger-secret-material` | Noul | gate | 0.60 | Does the diff contain credentials, keys, tokens, or connection strings with embedded passwords? |
 | `breaking-change` | Noul | gate | 0.60 | Does the diff change behavior callers or deployments depend on without a migration or compatibility path? |
@@ -63,6 +63,12 @@ check at or above their threshold; advisory rules report the same number and nev
 All seven questions go to Jev in a single request about the same state, so the fixed request
 overhead is paid once instead of once per question. In our measurements that overhead is
 about 300 input tokens per request.
+
+A gated rule whose first answer lands within `borderlineMargin` (0.1 by default) of its
+threshold gets one more ask, and the mean of the two decides. Near-threshold answers are
+where run-to-run noise can flip a verdict, and the second request carries only the rules
+that are close, so it costs nothing on the runs that are clearly clean or clearly blocked.
+The comment shows both asks for any rule that was averaged.
 
 The rule text lives in [`src/rules.ts`](src/rules.ts). The wording decides what the gate
 notices, so review a rule edit the way you review a code change.
@@ -150,6 +156,7 @@ Every setting:
 | `provider` | `typesafe` | `typesafe` or `openrouter`. |
 | `model` | `jev-latest` (typesafe), `~typesafe/jev-latest` (openrouter) | Jev model name; OpenRouter uses its own slugs such as `typesafe/jev-1.13`. |
 | `maxStateTokens` | `24000` | Budget for the serialized state; between 2000 and 30000. The API caps state plus the longest question near 32k tokens. |
+| `borderlineMargin` | `0.1` | Distance from a gated rule's threshold inside which the rule is asked a second time and the mean decides; 0 disables the second ask, 0.3 is the maximum. |
 | `ignore` | lockfiles, lockfile variants, `*.min.js`, `*.min.css`, `*.map`, `node_modules`, `dist` | Glob patterns for files excluded from the state. |
 | `comment` | `true` | Post or update the sticky comment. |
 | `rules.<name>.enabled` | `true` | Set `false` to drop the rule and its tokens. |
@@ -188,7 +195,8 @@ shows whether answers lean on each other. The repository ships a starter boundar
 [`samples/`](samples/README.md) with a known expected direction per file. Two practical
 rules: keep gated thresholds outside the 0.2-0.8 band unless you have enough samples to
 justify them, and re-measure after any rule wording change, because the wording moves the
-boundary.
+boundary. Borderline gated answers are averaged over two asks, so the spread `--repeat`
+prints after this change is the spread you actually get, not the raw one.
 
 ## Costs and limits
 
