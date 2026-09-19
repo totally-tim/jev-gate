@@ -87,8 +87,8 @@ export interface RuleDecision {
   kind: RuleKind;
   gate: boolean;
   threshold: number;
-  /** Concern probability, 0..1. For score rules this is the normalized position. */
-  probability: number;
+  /** Concern probability, 0..1, or null when the rule could not be graded. */
+  probability: number | null;
   /** Score rules: the expected level as Jev returned it, before normalization. */
   level?: number;
   /** Score rules: number of rubric levels. */
@@ -99,6 +99,8 @@ export interface RuleDecision {
   exceeded: boolean;
   /** Exceeded and gating; this is what fails the check. */
   failed: boolean;
+  /** Why the rule could not be graded, or null when it was. */
+  error: string | null;
 }
 
 /** The complete result of one review run, and the payload of the hidden data block. */
@@ -108,6 +110,8 @@ export interface ReviewOutcome {
   baseSha: string;
   prNumber: number;
   model: string;
+  /** SHA-256 prefix of the enabled rules' wording, so records stay comparable across edits. */
+  rulesHash: string;
   latencyMs: number;
   inputTokens: number;
   outputTokens: number;
@@ -117,6 +121,8 @@ export interface ReviewOutcome {
   decisions: RuleDecision[];
   passed: boolean;
   failedGates: string[];
+  /** Gated rules that could not be graded; the check fails while this is non-empty. */
+  erroredGates: string[];
 }
 
 /** The state object sent to Jev. */

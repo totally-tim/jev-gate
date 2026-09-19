@@ -88,10 +88,12 @@ which rule is blocking.
 ## Failing CI and branch protection
 
 When a gated rule fails, the action exits non-zero, so the workflow run shows a red check.
-The action never fails for rules that are not gated, and it always skips neutrally (green
-with a warning annotation) when it cannot run. To require the check, mark the `jev-gate`
-job as required in branch protection. Start advisory if you want to watch the numbers for a
-few pull requests first.
+A gated rule that cannot be graded (the model returned no usable answer) also fails the
+check: the gate exists to answer that question, and a re-run usually clears a malformed
+response. The action never fails for rules that are not gated, and it skips neutrally
+(green with a warning annotation) when it cannot run at all. To require the check, mark the
+`jev-gate` job as required in branch protection. Start advisory if you want to watch the
+numbers for a few pull requests first.
 
 ## Fork pull requests
 
@@ -179,7 +181,11 @@ node dist/bundle/cli.cjs calibrate --dir samples/
 
 `calibrate` prints one concern probability per rule per sample so you can pick thresholds
 that separate the diffs you would have blocked from the ones you would not. For OpenRouter,
-set `OPENROUTER_API_KEY` and pass `--provider openrouter` to either command. Two practical
+set `OPENROUTER_API_KEY` and pass `--provider openrouter` to either command. `--repeat`
+runs each sample several times to show run-to-run spread, and `--solo` asks one question per
+request instead of the production batched request, so a comparison of the two JSON outputs
+shows whether answers lean on each other. The repository ships a starter boundary suite in
+[`samples/`](samples/README.md) with a known expected direction per file. Two practical
 rules: keep gated thresholds outside the 0.2-0.8 band unless you have enough samples to
 justify them, and re-measure after any rule wording change, because the wording moves the
 boundary.

@@ -1,0 +1,11 @@
+diff --git a/src/auth/password.ts b/src/auth/password.ts
+--- a/src/auth/password.ts
++++ b/src/auth/password.ts
+@@ -1,6 +1,6 @@
+-import { createHash } from "node:crypto";
++import { createHash } from "node:crypto";
+ 
+ export function hashPassword(password: string, salt: string): string {
+-  return createHash("sha256").update(salt + password).digest("hex");
++  return createHash("md5").update(salt + password).digest("hex");
+ }

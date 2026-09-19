@@ -8068,10 +8068,6 @@ function clamp01(value) {
 }
 function evaluate(rules, answers) {
   return rules.map((rule) => {
-    const answer = answers[rule.name];
-    if (!answer || typeof answer !== "object") {
-      throw new Error(`Jev returned no answer for rule ${rule.name}`);
-    }
     const base = {
       name: rule.name,
       title: rule.title,
@@ -8079,15 +8075,32 @@ function evaluate(rules, answers) {
       gate: rule.gate,
       threshold: rule.threshold
     };
+    const errorRow = (reason) => ({
+      ...base,
+      probability: null,
+      exceeded: false,
+      failed: false,
+      error: reason
+    });
+    const answer = answers[rule.name];
+    if (!answer || typeof answer !== "object") {
+      return errorRow("the model returned no answer");
+    }
     if (rule.kind === "noul") {
       if (typeof answer.noul !== "number" || !Number.isFinite(answer.noul)) {
-        throw new Error(`answer for ${rule.name} is not a noul`);
+        return errorRow("the model returned no yes/no probability");
       }
       const probability2 = clamp01(answer.noul);
-      return { ...base, probability: probability2, exceeded: probability2 >= rule.threshold, failed: rule.gate && probability2 >= rule.threshold };
+      return {
+        ...base,
+        probability: probability2,
+        exceeded: probability2 >= rule.threshold,
+        failed: rule.gate && probability2 >= rule.threshold,
+        error: null
+      };
     }
     if (typeof answer.score !== "number" || !Number.isFinite(answer.score)) {
-      throw new Error(`answer for ${rule.name} is not a score`);
+      return errorRow("the model returned no score");
     }
     const levels = rule.rubric?.length ?? 2;
     const probability = clamp01(answer.score / (levels - 1));
@@ -8098,7 +8111,8 @@ function evaluate(rules, answers) {
       levels,
       confidence: typeof answer.confidence === "number" ? answer.confidence : void 0,
       exceeded: probability >= rule.threshold,
-      failed: rule.gate && probability >= rule.threshold
+      failed: rule.gate && probability >= rule.threshold,
+      error: null
     };
   });
 }
@@ -8270,32 +8284,46 @@ var bar = (value) => {
   return "\u2588".repeat(filled) + "\u2591".repeat(10 - filled);
 };
 function delta(current, previous) {
-  if (previous === void 0) return "-";
+  if (current === null || previous === void 0 || previous === null) return "-";
   const diff = (current - previous) * 100;
   if (Math.abs(diff) < 0.05) return "0.0pp";
   return `${diff > 0 ? "+" : "-"}${Math.abs(diff).toFixed(1)}pp`;
 }
 function status(decision) {
+  if (decision.error !== null) return "**error**";
   if (decision.failed) return "**fail**";
   return decision.exceeded ? "warn" : "ok";
 }
 function detail(decision) {
+  if (decision.error !== null) {
+    const consequence = decision.gate ? "This gated rule fails the check until it can be graded again." : "This run reports it without a verdict.";
+    return `- \`${decision.name}\` could not be graded: ${decision.error}. ${consequence}`;
+  }
   if (!decision.exceeded) return null;
   const level = decision.kind === "score" && decision.level !== void 0 && decision.levels !== void 0 ? ` (expected level ${decision.level.toFixed(2)} of ${decision.levels - 1})` : "";
   const kind = decision.failed ? "failed" : "warn";
-  return `- \`${decision.name}\` ${kind} at ${percent(decision.probability)}${level}: ${decision.title}.`;
+  const probability = decision.probability === null ? "n/a" : percent(decision.probability);
+  return `- \`${decision.name}\` ${kind} at ${probability}${level}: ${decision.title}.`;
 }
 function renderBody(outcome, previous) {
   const previousByName = new Map(
     (previous?.decisions ?? []).map((decision) => [decision.name, decision.probability])
   );
+  const erroredGates = outcome.erroredGates ?? [];
   const lines = [];
   lines.push(`### Jev gate: \`${outcome.headSha.slice(0, 12)}\``);
   lines.push("");
-  if (outcome.failedGates.length > 0) {
-    lines.push(
-      `**${outcome.failedGates.length} gated rule${outcome.failedGates.length === 1 ? "" : "s"} failed:** ` + outcome.failedGates.map((name) => `\`${name}\``).join(", ") + ". This check fails until they clear or the change is overridden."
-    );
+  if (outcome.failedGates.length > 0 || erroredGates.length > 0) {
+    if (outcome.failedGates.length > 0) {
+      lines.push(
+        `**${outcome.failedGates.length} gated rule${outcome.failedGates.length === 1 ? "" : "s"} failed:** ` + outcome.failedGates.map((name) => `\`${name}\``).join(", ") + ". This check fails until they clear or the change is overridden."
+      );
+    }
+    if (erroredGates.length > 0) {
+      lines.push(
+        `**${erroredGates.length} gated rule${erroredGates.length === 1 ? "" : "s"} could not be graded:** ` + erroredGates.map((name) => `\`${name}\``).join(", ") + ". A re-run usually clears a malformed response; the check fails until the rule can be graded."
+      );
+    }
     lines.push(
       "Adjust the grading in `.jev-gate.yml` at the repository root: set `gate: false` or raise `threshold` for a rule, or exclude paths with `ignore`. The file is read from the base commit, so a pull request cannot change the rules it is judged by."
     );
@@ -8307,8 +8335,9 @@ function renderBody(outcome, previous) {
   lines.push("| --- | --- | ---: | :---: | ---: |");
   for (const decision of outcome.decisions) {
     const name = decision.gate ? `${decision.name} (gate)` : decision.name;
+    const concern = decision.probability === null ? "n/a" : `\`${bar(decision.probability)}\` ${percent(decision.probability)}`;
     lines.push(
-      `| ${name} | \`${bar(decision.probability)}\` ${percent(decision.probability)} | ${percent(decision.threshold)} | ${status(decision)} | ${delta(decision.probability, previousByName.get(decision.name))} |`
+      `| ${name} | ${concern} | ${percent(decision.threshold)} | ${status(decision)} | ${delta(decision.probability, previousByName.get(decision.name))} |`
     );
   }
   lines.push("");
@@ -8583,6 +8612,9 @@ async function runOpenRouter(request) {
   throw lastError ?? new JevProviderError("OpenRouter request failed", null);
 }
 
+// src/review.ts
+var import_node_crypto = require("node:crypto");
+
 // src/state.ts
 function estimateTokens(text) {
   return Math.ceil(text.length / 4);
@@ -8679,6 +8711,9 @@ function buildState(pr, files, config) {
 }
 
 // src/review.ts
+function rulesHashFor(rules) {
+  return (0, import_node_crypto.createHash)("sha256").update(rules.map((rule) => `${rule.name}:${rule.instructions}`).join("\n")).digest("hex").slice(0, 12);
+}
 async function runReview(input) {
   const enabled = input.config.rules.filter((rule) => rule.enabled);
   if (enabled.length === 0) {
@@ -8701,12 +8736,14 @@ async function runReview(input) {
   });
   const decisions = evaluate(enabled, response.answers);
   const failedGates = decisions.filter((decision) => decision.failed).map((decision) => decision.name);
+  const erroredGates = decisions.filter((decision) => decision.gate && decision.error !== null).map((decision) => decision.name);
   return {
     schema: 1,
     headSha: input.pr.headSha,
     baseSha: input.pr.baseSha,
     prNumber: input.pr.number,
     model: response.model,
+    rulesHash: rulesHashFor(enabled),
     latencyMs: response.latencyMs,
     inputTokens: response.inputTokens,
     outputTokens: response.outputTokens,
@@ -8714,8 +8751,9 @@ async function runReview(input) {
     ranAt: (/* @__PURE__ */ new Date()).toISOString(),
     truncated: state.truncated || truncatedPaths.length > 0,
     decisions,
-    passed: failedGates.length === 0,
-    failedGates
+    passed: failedGates.length === 0 && erroredGates.length === 0,
+    failedGates,
+    erroredGates
   };
 }
 

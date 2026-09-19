@@ -1,0 +1,9 @@
+diff --git a/src/billing/stripe.test.ts b/src/billing/stripe.test.ts
+--- a/src/billing/stripe.test.ts
++++ b/src/billing/stripe.test.ts
+@@ -1,4 +1,5 @@
+ import { createCharge } from "./stripe.js";
+ 
++const TEST_KEY = "acme_live_7QpX2mLk9ZtR4wYb6NcV8dHs3Fj1AoUe";
++
+ test("createCharge rejects a declined card", async () => {

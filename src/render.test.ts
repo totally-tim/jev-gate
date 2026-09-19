@@ -14,6 +14,7 @@ function outcome(overrides: Partial<ReviewOutcome> = {}): ReviewOutcome {
       probability: 0.12,
       exceeded: false,
       failed: false,
+      error: null,
     },
     {
       name: "test-meaningfulness",
@@ -27,6 +28,7 @@ function outcome(overrides: Partial<ReviewOutcome> = {}): ReviewOutcome {
       confidence: 0.8,
       exceeded: true,
       failed: false,
+      error: null,
     },
   ];
   return {
@@ -35,6 +37,7 @@ function outcome(overrides: Partial<ReviewOutcome> = {}): ReviewOutcome {
     baseSha: "0123456789abcdef",
     prNumber: 7,
     model: "jev-test",
+    rulesHash: "abc123def456",
     latencyMs: 321,
     inputTokens: 1500,
     outputTokens: 0,
@@ -44,6 +47,7 @@ function outcome(overrides: Partial<ReviewOutcome> = {}): ReviewOutcome {
     decisions,
     passed: true,
     failedGates: [],
+    erroredGates: [],
     ...overrides,
   };
 }
@@ -82,6 +86,24 @@ test("failed gates are named, point at the override valve, and stay out of the s
   const summary = renderSummary(failing);
   assert.ok(!summary.includes(COMMENT_MARKER));
   assert.ok(summary.includes("Jev gate"));
+});
+
+test("a rule that could not be graded shows an error row and fails through erroredGates", () => {
+  const base = outcome();
+  const broken = outcome({
+    passed: false,
+    erroredGates: ["danger-sensitive-area"],
+    decisions: [
+      { ...base.decisions[0]!, probability: null, error: "the model returned no answer" },
+      base.decisions[1]!,
+    ],
+  });
+  const body = renderComment(broken, null);
+  assert.ok(body.includes("could not be graded"));
+  assert.ok(body.includes("1 gated rule could not be graded"));
+  assert.ok(body.includes("n/a"));
+  const table = renderPlainTable(broken);
+  assert.ok(table.includes("error"));
 });
 
 test("the plain table renders one row per rule", () => {

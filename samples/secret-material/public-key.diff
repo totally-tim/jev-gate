@@ -1,0 +1,9 @@
+diff --git a/src/auth/verify.ts b/src/auth/verify.ts
+--- a/src/auth/verify.ts
++++ b/src/auth/verify.ts
+@@ -8,3 +8,8 @@ const JWT_ISSUER = "https://accounts.example.test";
++const PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
++MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu9k1sCw1kSgJx2f0t
++-----END PUBLIC KEY-----`;
++
+ export function issuer(): string {

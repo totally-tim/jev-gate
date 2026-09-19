@@ -1,0 +1,12 @@
+diff --git a/src/api/client.ts b/src/api/client.ts
+--- a/src/api/client.ts
++++ b/src/api/client.ts
+@@ -12,9 +12,9 @@ import { fetchJson } from "./transport.js";
+-export async function getUsers(query: Query): Promise<User[]> {
++export async function listUsers(query: Query): Promise<User[]> {
+   const response = await fetchJson(`/users?${serialize(query)}`);
+   return response.items;
+ }
+ 
+-export const client = { getUsers };
++export const client = { listUsers };

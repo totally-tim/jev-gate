@@ -1,0 +1,7 @@
+diff --git a/docs/configuration.md b/docs/configuration.md
+--- a/docs/configuration.md
++++ b/docs/configuration.md
+@@ -12,3 +12,4 @@ Set the following variables before starting the server:
++STRIPE_API_KEY=<your-key-here>
+ LOG_LEVEL=info
+ DATA_DIR=/var/lib/app

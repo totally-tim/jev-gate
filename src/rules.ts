@@ -108,13 +108,9 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-/** Reduce Jev's answers to one decision per enabled rule. */
+/** Reduce Jev's answers to one decision per enabled rule. Missing answers become error rows. */
 export function evaluate(rules: readonly ResolvedRule[], answers: Record<string, unknown>): RuleDecision[] {
   return rules.map((rule) => {
-    const answer = answers[rule.name] as { type?: string; noul?: number; score?: number; confidence?: number } | undefined;
-    if (!answer || typeof answer !== "object") {
-      throw new Error(`Jev returned no answer for rule ${rule.name}`);
-    }
     const base = {
       name: rule.name,
       title: rule.title,
@@ -122,15 +118,34 @@ export function evaluate(rules: readonly ResolvedRule[], answers: Record<string,
       gate: rule.gate,
       threshold: rule.threshold,
     };
+    const errorRow = (reason: string): RuleDecision => ({
+      ...base,
+      probability: null,
+      exceeded: false,
+      failed: false,
+      error: reason,
+    });
+    const answer = answers[rule.name] as
+      | { type?: string; noul?: number; score?: number; confidence?: number }
+      | undefined;
+    if (!answer || typeof answer !== "object") {
+      return errorRow("the model returned no answer");
+    }
     if (rule.kind === "noul") {
       if (typeof answer.noul !== "number" || !Number.isFinite(answer.noul)) {
-        throw new Error(`answer for ${rule.name} is not a noul`);
+        return errorRow("the model returned no yes/no probability");
       }
       const probability = clamp01(answer.noul);
-      return { ...base, probability, exceeded: probability >= rule.threshold, failed: rule.gate && probability >= rule.threshold };
+      return {
+        ...base,
+        probability,
+        exceeded: probability >= rule.threshold,
+        failed: rule.gate && probability >= rule.threshold,
+        error: null,
+      };
     }
     if (typeof answer.score !== "number" || !Number.isFinite(answer.score)) {
-      throw new Error(`answer for ${rule.name} is not a score`);
+      return errorRow("the model returned no score");
     }
     const levels = rule.rubric?.length ?? 2;
     const probability = clamp01(answer.score / (levels - 1));
@@ -142,6 +157,7 @@ export function evaluate(rules: readonly ResolvedRule[], answers: Record<string,
       confidence: typeof answer.confidence === "number" ? answer.confidence : undefined,
       exceeded: probability >= rule.threshold,
       failed: rule.gate && probability >= rule.threshold,
+      error: null,
     };
   });
 }

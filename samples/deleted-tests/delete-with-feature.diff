@@ -1,0 +1,18 @@
+diff --git a/src/legacy/report.ts b/src/legacy/report.ts
+deleted file mode 100644
+--- a/src/legacy/report.ts
++++ /dev/null
+@@ -1,4 +0,0 @@
+-export function legacyReport(rows: Row[]): string {
+-  return rows.map((row) => row.join(",")).join("\n");
+-}
+diff --git a/src/legacy/report.test.ts b/src/legacy/report.test.ts
+deleted file mode 100644
+--- a/src/legacy/report.test.ts
++++ /dev/null
+@@ -1,6 +0,0 @@
+-import { legacyReport } from "./report.js";
+-
+-test("legacyReport joins rows", () => {
+-  expect(legacyReport([["a", "b"]])).toBe("a,b");
+-});

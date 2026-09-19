@@ -1,0 +1,10 @@
+diff --git a/src/queue/worker.test.ts b/src/queue/worker.test.ts
+--- a/src/queue/worker.test.ts
++++ b/src/queue/worker.test.ts
+@@ -5,7 +5,7 @@ import { drain } from "./worker.js";
+-it("drains the queue in order", async () => {
++it.skip("drains the queue in order", async () => {
+   const queue = fakeQueue(["a", "b"]);
+   await drain(queue);
+   expect(queue.processed).toEqual(["a", "b"]);
+ });

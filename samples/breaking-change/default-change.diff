@@ -1,0 +1,10 @@
+diff --git a/src/config/defaults.ts b/src/config/defaults.ts
+--- a/src/config/defaults.ts
++++ b/src/config/defaults.ts
+@@ -1,6 +1,6 @@
+ export const DEFAULTS = {
+   retries: 3,
+-  timeoutMs: 30_000,
++  timeoutMs: 5_000,
+   logLevel: "info",
+ };

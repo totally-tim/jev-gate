@@ -1,0 +1,7 @@
+diff --git a/src/auth/session.ts b/src/auth/session.ts
+--- a/src/auth/session.ts
++++ b/src/auth/session.ts
+@@ -10,3 +10,3 @@ export function validateSession(inputToken: string): Session | null {
+-// TODO: the retry below was added for the staging incident in March.
++// The retry below covers a transient clock skew seen on staging.
+ export const SESSION_RETRIES = 2;

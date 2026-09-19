@@ -25,7 +25,7 @@ const bar = (value) => {
     return "█".repeat(filled) + "░".repeat(10 - filled);
 };
 function delta(current, previous) {
-    if (previous === undefined)
+    if (current === null || previous === undefined || previous === null)
         return "-";
     const diff = (current - previous) * 100;
     if (Math.abs(diff) < 0.05)
@@ -33,28 +33,45 @@ function delta(current, previous) {
     return `${diff > 0 ? "+" : "-"}${Math.abs(diff).toFixed(1)}pp`;
 }
 function status(decision) {
+    if (decision.error !== null)
+        return "**error**";
     if (decision.failed)
         return "**fail**";
     return decision.exceeded ? "warn" : "ok";
 }
 function detail(decision) {
+    if (decision.error !== null) {
+        const consequence = decision.gate
+            ? "This gated rule fails the check until it can be graded again."
+            : "This run reports it without a verdict.";
+        return `- \`${decision.name}\` could not be graded: ${decision.error}. ${consequence}`;
+    }
     if (!decision.exceeded)
         return null;
     const level = decision.kind === "score" && decision.level !== undefined && decision.levels !== undefined
         ? ` (expected level ${decision.level.toFixed(2)} of ${decision.levels - 1})`
         : "";
     const kind = decision.failed ? "failed" : "warn";
-    return `- \`${decision.name}\` ${kind} at ${percent(decision.probability)}${level}: ${decision.title}.`;
+    const probability = decision.probability === null ? "n/a" : percent(decision.probability);
+    return `- \`${decision.name}\` ${kind} at ${probability}${level}: ${decision.title}.`;
 }
 function renderBody(outcome, previous) {
     const previousByName = new Map((previous?.decisions ?? []).map((decision) => [decision.name, decision.probability]));
+    const erroredGates = outcome.erroredGates ?? [];
     const lines = [];
     lines.push(`### Jev gate: \`${outcome.headSha.slice(0, 12)}\``);
     lines.push("");
-    if (outcome.failedGates.length > 0) {
-        lines.push(`**${outcome.failedGates.length} gated rule${outcome.failedGates.length === 1 ? "" : "s"} failed:** ` +
-            outcome.failedGates.map((name) => `\`${name}\``).join(", ") +
-            ". This check fails until they clear or the change is overridden.");
+    if (outcome.failedGates.length > 0 || erroredGates.length > 0) {
+        if (outcome.failedGates.length > 0) {
+            lines.push(`**${outcome.failedGates.length} gated rule${outcome.failedGates.length === 1 ? "" : "s"} failed:** ` +
+                outcome.failedGates.map((name) => `\`${name}\``).join(", ") +
+                ". This check fails until they clear or the change is overridden.");
+        }
+        if (erroredGates.length > 0) {
+            lines.push(`**${erroredGates.length} gated rule${erroredGates.length === 1 ? "" : "s"} could not be graded:** ` +
+                erroredGates.map((name) => `\`${name}\``).join(", ") +
+                ". A re-run usually clears a malformed response; the check fails until the rule can be graded.");
+        }
         lines.push("Adjust the grading in `.jev-gate.yml` at the repository root: set `gate: false` or " +
             "raise `threshold` for a rule, or exclude paths with `ignore`. The file is read from " +
             "the base commit, so a pull request cannot change the rules it is judged by.");
@@ -67,7 +84,8 @@ function renderBody(outcome, previous) {
     lines.push("| --- | --- | ---: | :---: | ---: |");
     for (const decision of outcome.decisions) {
         const name = decision.gate ? `${decision.name} (gate)` : decision.name;
-        lines.push(`| ${name} | \`${bar(decision.probability)}\` ${percent(decision.probability)} | ` +
+        const concern = decision.probability === null ? "n/a" : `\`${bar(decision.probability)}\` ${percent(decision.probability)}`;
+        lines.push(`| ${name} | ${concern} | ` +
             `${percent(decision.threshold)} | ${status(decision)} | ` +
             `${delta(decision.probability, previousByName.get(decision.name))} |`);
     }
@@ -103,7 +121,7 @@ export function renderSummary(outcome) {
 export function renderPlainTable(outcome) {
     const rows = outcome.decisions.map((decision) => [
         `${decision.name}${decision.gate ? " (gate)" : ""}`,
-        percent(decision.probability),
+        decision.probability === null ? "n/a" : percent(decision.probability),
         percent(decision.threshold),
         status(decision).replaceAll("*", ""),
     ]);

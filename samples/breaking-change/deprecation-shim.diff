@@ -1,0 +1,15 @@
+diff --git a/src/api/client.ts b/src/api/client.ts
+--- a/src/api/client.ts
++++ b/src/api/client.ts
+@@ -12,6 +12,12 @@ import { fetchJson } from "./transport.js";
+ export async function getUsers(query: Query): Promise<User[]> {
+   const response = await fetchJson(`/users?${serialize(query)}`);
+   return response.items;
+ }
+ 
++/** @deprecated Use getUsers; this alias will be removed in v3. */
++export const getUsersLegacy = getUsers;
++
++export async function listUsers(query: Query): Promise<User[]> {
++  return getUsers(query);
++}

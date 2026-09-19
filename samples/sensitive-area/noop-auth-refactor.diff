@@ -1,0 +1,13 @@
+diff --git a/src/auth/session.ts b/src/auth/session.ts
+--- a/src/auth/session.ts
++++ b/src/auth/session.ts
+@@ -3,9 +3,9 @@ import { parse, verify } from "./verify.js";
+-export function validateSession(raw: string): Session | null {
+-  const parsed = parse(raw);
+-  if (!parsed) return null;
+-  return verify(parsed);
++export function validateSession(inputToken: string): Session | null {
++  const session = parse(inputToken);
++  if (!session) return null;
++  return verify(session);
+ }

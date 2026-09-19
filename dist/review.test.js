@@ -102,6 +102,33 @@ test("the openrouter provider uses the decisions endpoint and the provider model
     assert.equal(Object.keys(calls[0]?.body.questions ?? {}).length, 7);
     assert.deepEqual(outcome.failedGates, ["danger-sensitive-area"]);
 });
+test("a missing answer becomes an errored gate while the others keep their verdicts", async () => {
+    const fetchImpl = async (_input, init) => {
+        const body = JSON.parse(String(init?.body));
+        const answers = {};
+        for (const [name, question] of Object.entries(body.questions)) {
+            if (name === "danger-deleted-tests")
+                continue;
+            answers[name] =
+                question.type === "noul"
+                    ? { type: "noul", noul: 0.05 }
+                    : { type: "score", score: 0.1, confidence: 0.9 };
+        }
+        return new Response(JSON.stringify({ model: "jev-test", answers, usage: { input_tokens: 100, output_tokens: 0 } }), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    const outcome = await runReview({
+        pr: pullRequest(),
+        files,
+        config: resolveConfig(validateConfigDocument({})),
+        apiKey: "test-key",
+        fetchImpl,
+    });
+    assert.equal(outcome.passed, false);
+    assert.deepEqual(outcome.erroredGates, ["danger-deleted-tests"]);
+    assert.deepEqual(outcome.failedGates, []);
+    assert.equal(outcome.decisions.find((decision) => decision.name === "comment-drift")?.error, null);
+    assert.equal(outcome.rulesHash.length, 12);
+});
 test("an API failure surfaces instead of passing silently", async () => {
     const fetchImpl = async () => new Response("nope", { status: 500 });
     await assert.rejects(runReview({

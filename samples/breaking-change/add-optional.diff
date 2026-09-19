@@ -1,0 +1,10 @@
+diff --git a/src/api/types.ts b/src/api/types.ts
+--- a/src/api/types.ts
++++ b/src/api/types.ts
+@@ -1,6 +1,7 @@
+ export interface User {
+   id: string;
+   name: string;
++  locale?: string;
+   createdAt: string;
+ }

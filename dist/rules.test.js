@@ -34,7 +34,16 @@ test("score decisions normalize against the rubric length", () => {
     assert.equal(decision?.exceeded, true);
     assert.equal(decision?.failed, false);
 });
-test("missing or malformed answers throw instead of passing silently", () => {
-    assert.throws(() => evaluate(rules, {}), /no answer/);
-    assert.throws(() => evaluate(rules.filter((rule) => rule.name === "breaking-change"), { "breaking-change": { type: "score" } }), /not a noul/);
+test("missing or malformed answers become error rows instead of throwing", () => {
+    const decisions = evaluate(rules, {});
+    assert.ok(decisions.every((decision) => decision.error !== null && decision.probability === null));
+    assert.ok(decisions.every((decision) => !decision.failed && !decision.exceeded));
+    const malformed = evaluate(rules.filter((rule) => rule.name === "breaking-change"), { "breaking-change": { type: "score", score: 1 } });
+    assert.match(malformed[0]?.error ?? "", /yes\/no/);
+    const healthy = evaluate(rules, {
+        ...Object.fromEntries(rules.map((rule) => [rule.name, { type: "noul", noul: 0.1 }])),
+        "breaking-change": { type: "noul", noul: 0.9 },
+    });
+    assert.equal(healthy.find((decision) => decision.name === "breaking-change")?.failed, true);
+    assert.equal(healthy.find((decision) => decision.name === "comment-drift")?.error, null);
 });
