@@ -89,6 +89,12 @@ within `borderlineMargin` of the threshold are now asked twice and averaged.
   suite labels it only for `danger-secret-material`, where it scores 7.5, below. Treat it as
   a candidate false positive for the sensitive-area wording, not a passing case.
 
+Postscript: `secret-material/fixture-key.diff` and `controls/danger-kitchen-sink.diff`
+originally carried Stripe-shaped `sk_live_` values, which GitHub push protection rejects
+even in a fixture. Both now use `acme_live_` strings. Re-measured over three runs at rules
+`ecc13761bf17`: `fixture-key.diff` scores 88.3 on `danger-secret-material` and
+`danger-kitchen-sink.diff` scores 96.7 there, so the fixtures still separate above the gate.
+
 ## Growing the suite
 
 The target is 10 to 15 samples per gated rule, then 100 to 150 real merged pull requests
