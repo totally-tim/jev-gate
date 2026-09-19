@@ -19,7 +19,8 @@ fails only on the rules you choose to gate.
 2. Copy [examples/caller.yml](examples/caller.yml) to `.github/workflows/jev-gate.yml`.
 3. Optionally add a `.jev-gate.yml` to tune rules and thresholds (see below).
 
-Until a `v1` tag exists, pin the action to a full commit SHA instead of `@v1`.
+Until the `v1` tag exists, pin the action to a full commit SHA instead of `@v1`; after
+that, `@v1` tracks the latest v1 release and a SHA pins exactly.
 
 The first push to a pull request creates the sticky comment; later pushes update it in place
 and show the delta against the previous run.
@@ -38,7 +39,7 @@ Then pass the OpenRouter key as the action input, or set `OPENROUTER_API_KEY` in
 environment and leave the input empty:
 
 ```yaml
-      - uses: timkraus/jev-gate@v1
+      - uses: totally-tim/jev-gate@v1
         with:
           api-key: ${{ secrets.OPENROUTER_API_KEY }}
 ```
@@ -117,7 +118,7 @@ jobs:
   jev-gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: timkraus/jev-gate@8f3c1d0  # pin a release commit
+      - uses: totally-tim/jev-gate@8f3c1d0  # pin a release commit
         with:
           api-key: ${{ secrets.TYPESAFE_API_KEY }}
 ```

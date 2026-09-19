@@ -59,9 +59,9 @@ then it sees no options, and referencing the same directory both ways loads it t
 }
 ```
 
-The package imports `@opencode/plugin` from the runtime, so wherever it is installed, that
-package must be resolvable: `opencode plugin add` installs the dependency for you; a copied
-directory needs the project's `node_modules` to provide it.
+The package imports `@opencode/plugin` from the runtime, so that package must be resolvable
+wherever the plugin is installed. `opencode plugin add` installs the dependency for you; a
+copied directory needs the project's `node_modules` to provide it.
 
 ## Options
 
@@ -112,9 +112,9 @@ not specific lines, and its numbers can be wrong. If the finding is real, fix it
 not, say why. Do not edit code just to move the number.
 ```
 
-Only gated rules are injected, each finding once per diff hash. Advisory scores stay in the
-ledger. A briefing is delivered on the next agent-loop call, not to title generation or other
-auxiliary requests.
+Only gated rules are injected, and each finding is delivered once per diff hash. Advisory
+scores stay in the ledger. A briefing reaches the next agent-loop call, not title generation
+or other auxiliary requests.
 
 ## Development
 

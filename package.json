@@ -27,5 +27,13 @@
     "esbuild": "^0.25.0",
     "typescript": "^7.0.2",
     "@opencode/plugin": "2.0.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/totally-tim/jev-gate.git"
+  },
+  "homepage": "https://github.com/totally-tim/jev-gate#readme",
+  "bugs": {
+    "url": "https://github.com/totally-tim/jev-gate/issues"
   }
 }
