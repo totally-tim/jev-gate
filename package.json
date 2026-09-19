@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc && node scripts/build.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p plugin/tsconfig.json",
-    "test": "npm run build && tsc -p plugin/tsconfig.json && node --test \"dist/**/*.test.js\" \"plugin/dist/**/*.test.js\"",
+    "test": "npm run build && tsc -p plugin/tsconfig.json && node --test dist plugin/dist",
     "test:one": "node --test",
     "cli": "node dist/bundle/cli.cjs"
   },
