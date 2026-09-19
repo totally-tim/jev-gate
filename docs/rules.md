@@ -41,6 +41,12 @@ should fail loudly and rarely: a false "contains secrets" verdict costs a look f
 human, a false negative costs a leaked key. Advisory rules can sit lower because a warning
 does not block anything.
 
+The built-in defaults sit inside the 0.2 to 0.8 band that the bench flags as thinly
+populated. They separate obvious cases, but treat them as provisional until you calibrate
+them on your own samples. For the three-level Score rubrics, 0.70 fires at an expected level
+of 1.4 or higher and 0.60 at 1.2 or higher, so argue about those thresholds in levels when
+you change a rubric.
+
 Practical calibration, from a checkout after `npm run build`:
 
 ```sh

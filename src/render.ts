@@ -61,6 +61,11 @@ function renderBody(outcome: ReviewOutcome, previous: ReviewOutcome | null): str
         outcome.failedGates.map((name) => `\`${name}\``).join(", ") +
         ". This check fails until they clear or the change is overridden.",
     );
+    lines.push(
+      "Adjust the grading in `.jev-gate.yml` at the repository root: set `gate: false` or " +
+        "raise `threshold` for a rule, or exclude paths with `ignore`. The file is read from " +
+        "the base commit, so a pull request cannot change the rules it is judged by.",
+    );
   } else {
     lines.push("All gated rules passed.");
   }

@@ -52,6 +52,7 @@ test("comments carry the marker, a table, and a parseable data block", () => {
     assert.ok(body.includes("50.0%"), "threshold 0.5 renders as 50.0%");
     assert.ok(body.includes("70.0%"), "threshold 0.7 renders as 70.0%");
     assert.ok(body.includes("warn"));
+    assert.ok(!body.includes(".jev-gate.yml"), "a passing comment does not carry the override hint");
     const parsed = parsePreviousOutcome(body);
     assert.equal(parsed?.headSha, "abcdef1234567890");
     assert.equal(parsed?.decisions.length, 2);
@@ -68,10 +69,11 @@ test("deltas compare against the previous run", () => {
     assert.ok(body.includes("+5.0pp"));
     assert.ok(body.includes("-25.0pp"));
 });
-test("failed gates are named and the summary stays marker-free", () => {
+test("failed gates are named, point at the override valve, and stay out of the summary", () => {
     const failing = outcome({ passed: false, failedGates: ["breaking-change"] });
     const body = renderComment(failing, null);
     assert.ok(body.includes("1 gated rule failed"));
+    assert.ok(body.includes(".jev-gate.yml"), "a failing comment names where to adjust the grading");
     const summary = renderSummary(failing);
     assert.ok(!summary.includes(COMMENT_MARKER));
     assert.ok(summary.includes("Jev gate"));

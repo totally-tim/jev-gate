@@ -63,9 +63,9 @@ function readEvent(): PullRequestEvent {
   return JSON.parse(readFileSync(path, "utf8")) as PullRequestEvent;
 }
 
-function loadConfigText(text: string): ResolvedConfig {
+function loadConfigText(text: string, warnings: string[]): ResolvedConfig {
   const parsed = parseYaml(text) as unknown;
-  return resolveConfig(validateConfigDocument(parsed));
+  return resolveConfig(validateConfigDocument(parsed, warnings));
 }
 
 function applyInputOverrides(config: ResolvedConfig): ResolvedConfig {
@@ -122,9 +122,12 @@ export async function runAction(): Promise<number> {
 
   const configPath = getInput("config-path") || ".jev-gate.yml";
   const configText = await client.getFileAtRef(owner, repo, configPath, pr.baseSha);
+  const configWarnings: string[] = [];
   let config: ResolvedConfig;
   try {
-    config = applyInputOverrides(configText === null ? resolveConfig({}) : loadConfigText(configText));
+    config = applyInputOverrides(
+      configText === null ? resolveConfig({}) : loadConfigText(configText, configWarnings),
+    );
   } catch (error) {
     if (error instanceof ConfigError) {
       fail(`the config at ${configPath}@${pr.baseSha.slice(0, 12)} is invalid: ${error.message}`);
@@ -133,6 +136,7 @@ export async function runAction(): Promise<number> {
     }
     throw error;
   }
+  for (const message of configWarnings) warn(`config: ${message}`);
 
   const keyEnv = PROVIDER_ENV_KEYS[config.provider];
   const apiKey = getInput("api-key") || process.env[keyEnv] || "";

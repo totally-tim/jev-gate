@@ -33,6 +33,19 @@ test("providers select the default model and validate their settings", () => {
     assert.throws(() => validateConfigDocument({ openrouter: { referer: "" } }), ConfigError);
     assert.throws(() => validateConfigDocument({ openrouter: { site: "example" } }), ConfigError);
 });
+test("edge thresholds produce warnings instead of errors", () => {
+    const warnings = [];
+    const doc = validateConfigDocument({ rules: { "breaking-change": { threshold: 0 } } }, warnings);
+    assert.equal(doc.rules?.["breaking-change"]?.threshold, 0);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0] ?? "", /breaking-change/);
+    const second = [];
+    validateConfigDocument({ rules: { "comment-drift": { threshold: 1 } } }, second);
+    assert.equal(second.length, 1);
+    const clean = [];
+    validateConfigDocument({ rules: { "breaking-change": { threshold: 0.6 } } }, clean);
+    assert.deepEqual(clean, []);
+});
 test("unknown rule names and settings are rejected", () => {
     assert.throws(() => validateConfigDocument({ rules: { nonsense: { gate: true } } }), ConfigError);
     assert.throws(() => validateConfigDocument({ rules: { "breaking-change": { level: 1 } } }), ConfigError);

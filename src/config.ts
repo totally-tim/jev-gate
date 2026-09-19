@@ -39,7 +39,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Validate one rule override; unknown keys and bad types are config errors, not defaults. */
-function readRuleOverride(name: string, raw: unknown): RuleConfigOverride {
+function readRuleOverride(name: string, raw: unknown, warnings: string[]): RuleConfigOverride {
   if (!isRecord(raw)) throw new ConfigError(`rules.${name} must be a mapping`);
   const override: RuleConfigOverride = {};
   for (const [key, value] of Object.entries(raw)) {
@@ -51,6 +51,11 @@ function readRuleOverride(name: string, raw: unknown): RuleConfigOverride {
         throw new ConfigError(`rules.${name}.threshold must be a number between 0 and 1`);
       }
       override.threshold = value;
+      if (value === 0) {
+        warnings.push(`rules.${name}.threshold is 0, so the rule fires on every diff`);
+      } else if (value === 1) {
+        warnings.push(`rules.${name}.threshold is 1, so the rule fires only on a certain answer`);
+      }
     } else {
       throw new ConfigError(`rules.${name}.${key} is not a known setting`);
     }
@@ -75,7 +80,7 @@ function readOpenRouterSettings(raw: unknown): { referer?: string; title?: strin
 }
 
 /** Validate the parsed YAML document. Unknown top-level or rule keys are errors. */
-export function validateConfigDocument(raw: unknown): ConfigDocument {
+export function validateConfigDocument(raw: unknown, warnings: string[] = []): ConfigDocument {
   if (raw === null || raw === undefined) return {};
   if (!isRecord(raw)) throw new ConfigError("the config file must be a YAML mapping");
   const doc: ConfigDocument = {};
@@ -116,7 +121,7 @@ export function validateConfigDocument(raw: unknown): ConfigDocument {
       const rules: Record<string, RuleConfigOverride> = {};
       for (const [name, entry] of Object.entries(value)) {
         if (!knownRules.has(name)) throw new ConfigError(`rules.${name} is not a known rule`);
-        rules[name] = readRuleOverride(name, entry);
+        rules[name] = readRuleOverride(name, entry, warnings);
       }
       doc.rules = rules;
     } else {

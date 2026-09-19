@@ -51,7 +51,11 @@ function loadConfigFile(path) {
     if (!path)
         return resolveConfig({});
     const text = readFileSync(path, "utf8");
-    return resolveConfig(validateConfigDocument(parseYaml(text)));
+    const warnings = [];
+    const config = resolveConfig(validateConfigDocument(parseYaml(text), warnings));
+    for (const message of warnings)
+        process.stderr.write(`warning: ${message}\n`);
+    return config;
 }
 export function parseDiff(text) {
     const files = [];

@@ -58,7 +58,10 @@ function flagString(args: ParsedArgs, name: string): string | undefined {
 function loadConfigFile(path: string | undefined): ResolvedConfig {
   if (!path) return resolveConfig({});
   const text = readFileSync(path, "utf8");
-  return resolveConfig(validateConfigDocument(parseYaml(text) as unknown));
+  const warnings: string[] = [];
+  const config = resolveConfig(validateConfigDocument(parseYaml(text) as unknown, warnings));
+  for (const message of warnings) process.stderr.write(`warning: ${message}\n`);
+  return config;
 }
 
 export function parseDiff(text: string): DiffFile[] {

@@ -32,7 +32,7 @@ function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 /** Validate one rule override; unknown keys and bad types are config errors, not defaults. */
-function readRuleOverride(name, raw) {
+function readRuleOverride(name, raw, warnings) {
     if (!isRecord(raw))
         throw new ConfigError(`rules.${name} must be a mapping`);
     const override = {};
@@ -47,6 +47,12 @@ function readRuleOverride(name, raw) {
                 throw new ConfigError(`rules.${name}.threshold must be a number between 0 and 1`);
             }
             override.threshold = value;
+            if (value === 0) {
+                warnings.push(`rules.${name}.threshold is 0, so the rule fires on every diff`);
+            }
+            else if (value === 1) {
+                warnings.push(`rules.${name}.threshold is 1, so the rule fires only on a certain answer`);
+            }
         }
         else {
             throw new ConfigError(`rules.${name}.${key} is not a known setting`);
@@ -71,7 +77,7 @@ function readOpenRouterSettings(raw) {
     return settings;
 }
 /** Validate the parsed YAML document. Unknown top-level or rule keys are errors. */
-export function validateConfigDocument(raw) {
+export function validateConfigDocument(raw, warnings = []) {
     if (raw === null || raw === undefined)
         return {};
     if (!isRecord(raw))
@@ -120,7 +126,7 @@ export function validateConfigDocument(raw) {
             for (const [name, entry] of Object.entries(value)) {
                 if (!knownRules.has(name))
                     throw new ConfigError(`rules.${name} is not a known rule`);
-                rules[name] = readRuleOverride(name, entry);
+                rules[name] = readRuleOverride(name, entry, warnings);
             }
             doc.rules = rules;
         }

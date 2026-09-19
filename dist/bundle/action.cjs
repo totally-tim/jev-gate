@@ -7987,7 +7987,7 @@ var RULE_DEFINITIONS = [
     kind: "noul",
     gate: true,
     threshold: 0.5,
-    instructions: "This diff in `files` changes security-sensitive logic: authentication, authorization, session or token handling, payment flows, handling of personal data, or database migrations. A change is sensitive when a mistake could weaken a protection, leak data, or corrupt data, not merely when the file sits near such code. Tests and documentation alone are not sensitive."
+    instructions: "This diff in `files` changes security-sensitive logic, such as authentication, authorization, session or token handling, cryptography like hashing or randomness, payment flows, handling of personal data, or database migrations. A change is sensitive when a mistake could weaken a protection, leak data, or corrupt data, not merely when the file sits near such code. Tests and documentation alone are not sensitive."
   },
   {
     name: "danger-deleted-tests",
@@ -7995,7 +7995,7 @@ var RULE_DEFINITIONS = [
     kind: "noul",
     gate: true,
     threshold: 0.6,
-    instructions: "This diff in `files` deletes, disables, or skips existing test cases instead of updating them together with the behavior they cover. Examples: removing a test file or a test body, adding skip or only markers, or weakening assertions so they always pass. Adding tests is not this."
+    instructions: "This diff in `files` deletes, disables, or skips existing test cases in a way that loses coverage without a matching change to the behavior they cover. Examples: removing a test file or test body, commenting out a test, adding skip, only, or todo markers, guarding tests behind an environment flag, or weakening assertions so several different behaviors would still pass. Deleting tests for behavior the same diff removes, and adding or rewriting tests, are not this."
   },
   {
     name: "danger-secret-material",
@@ -8003,7 +8003,7 @@ var RULE_DEFINITIONS = [
     kind: "noul",
     gate: true,
     threshold: 0.6,
-    instructions: "This diff in `files` contains secret material: credentials, API keys, tokens, private keys, or connection strings with embedded passwords, in source, configuration, fixtures, or examples. Placeholder values such as `example` or `<your-key>` are not secrets."
+    instructions: "This diff in `files` contains secret material: credentials, API keys, tokens, private keys, or connection strings with embedded passwords, in source, configuration, fixtures, or examples. A real credential pasted into a fixture, test, or example is still a secret. Placeholder values such as `example` or `<your-key>`, public keys, and non-secret client identifiers are not secrets."
   },
   {
     name: "breaking-change",
@@ -8011,7 +8011,7 @@ var RULE_DEFINITIONS = [
     kind: "noul",
     gate: true,
     threshold: 0.6,
-    instructions: "This diff in `files` changes existing behavior that callers or deployments depend on: API signatures, configuration keys, CLI flags, output formats, file formats, or defaults. Judge whether an existing user could break without an edit on their side, and whether the same diff provides a migration or compatibility path. Additive changes and purely internal refactors are not breaking."
+    instructions: "This diff in `files` breaks compatibility for existing callers or deployments: it changes or removes a public or exported API signature, configuration key, CLI flag, output or file format, or default value in a way that is not backward compatible, and the same diff does not keep the old form working or provide a migration path. Deprecating while the old form still works, purely additive changes, and renames or removals of private internals are not breaking."
   },
   {
     name: "test-meaningfulness",
@@ -8019,7 +8019,7 @@ var RULE_DEFINITIONS = [
     kind: "score",
     gate: false,
     threshold: 0.7,
-    instructions: "How weak are the tests that this diff adds or changes? Judge only tests present in the diff; absent tests are not this question. Level 0: tests pin specific observable behavior or outputs. Level 1: tests assert something, but several different behaviors would still pass them. Level 2: tests mostly assert that code runs, mirror the implementation, or snapshot without intent.",
+    instructions: "How weak are the tests that this diff adds or changes? Judge only tests present in the diff. If the diff adds or changes no tests, this is level 0. Level 0: tests pin specific observable behavior or outputs. Level 1: tests assert something, but several different behaviors would still pass them. Level 2: tests mostly assert that code runs, mirror the implementation, or snapshot without intent.",
     rubric: [
       "Tests assert specific observable behavior or outputs",
       "Tests assert something, but several different behaviors would still pass them",
@@ -8032,7 +8032,7 @@ var RULE_DEFINITIONS = [
     kind: "score",
     gate: false,
     threshold: 0.6,
-    instructions: "How much does the diff in `files` bundle unrelated changes or diverge from what `pr` describes? Level 0: one coherent change matching the description. Level 1: mostly one change with some unrelated edits mixed in. Level 2: unrelated changes bundled together, or the content does not match the description.",
+    instructions: "How much does the diff in `files` bundle unrelated changes, or diverge from what `pr` describes? Judge mismatch only when the description is specific enough to compare against; a vague or missing description is level 0 for mismatch. Level 0: one coherent change matching the description. Level 1: mostly one change with some unrelated edits mixed in. Level 2: unrelated changes bundled together, or the content clearly does not match a specific description.",
     rubric: [
       "One coherent change that matches the description",
       "Mostly one change, with some unrelated edits mixed in",
@@ -8133,7 +8133,7 @@ var MAX_STATE_TOKENS = 3e4;
 function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function readRuleOverride(name, raw) {
+function readRuleOverride(name, raw, warnings) {
   if (!isRecord2(raw)) throw new ConfigError(`rules.${name} must be a mapping`);
   const override = {};
   for (const [key, value] of Object.entries(raw)) {
@@ -8145,6 +8145,11 @@ function readRuleOverride(name, raw) {
         throw new ConfigError(`rules.${name}.threshold must be a number between 0 and 1`);
       }
       override.threshold = value;
+      if (value === 0) {
+        warnings.push(`rules.${name}.threshold is 0, so the rule fires on every diff`);
+      } else if (value === 1) {
+        warnings.push(`rules.${name}.threshold is 1, so the rule fires only on a certain answer`);
+      }
     } else {
       throw new ConfigError(`rules.${name}.${key} is not a known setting`);
     }
@@ -8165,7 +8170,7 @@ function readOpenRouterSettings(raw) {
   }
   return settings;
 }
-function validateConfigDocument(raw) {
+function validateConfigDocument(raw, warnings = []) {
   if (raw === null || raw === void 0) return {};
   if (!isRecord2(raw)) throw new ConfigError("the config file must be a YAML mapping");
   const doc = {};
@@ -8201,7 +8206,7 @@ function validateConfigDocument(raw) {
       const rules = {};
       for (const [name, entry] of Object.entries(value)) {
         if (!knownRules.has(name)) throw new ConfigError(`rules.${name} is not a known rule`);
-        rules[name] = readRuleOverride(name, entry);
+        rules[name] = readRuleOverride(name, entry, warnings);
       }
       doc.rules = rules;
     } else {
@@ -8290,6 +8295,9 @@ function renderBody(outcome, previous) {
   if (outcome.failedGates.length > 0) {
     lines.push(
       `**${outcome.failedGates.length} gated rule${outcome.failedGates.length === 1 ? "" : "s"} failed:** ` + outcome.failedGates.map((name) => `\`${name}\``).join(", ") + ". This check fails until they clear or the change is overridden."
+    );
+    lines.push(
+      "Adjust the grading in `.jev-gate.yml` at the repository root: set `gate: false` or raise `threshold` for a rule, or exclude paths with `ignore`. The file is read from the base commit, so a pull request cannot change the rules it is judged by."
     );
   } else {
     lines.push("All gated rules passed.");
@@ -8760,9 +8768,9 @@ function readEvent() {
   if (!path) throw new Error("GITHUB_EVENT_PATH is not set; this entry point runs inside GitHub Actions");
   return JSON.parse((0, import_node_fs.readFileSync)(path, "utf8"));
 }
-function loadConfigText(text) {
+function loadConfigText(text, warnings) {
   const parsed = (0, import_yaml.parse)(text);
-  return resolveConfig(validateConfigDocument(parsed));
+  return resolveConfig(validateConfigDocument(parsed, warnings));
 }
 function applyInputOverrides(config) {
   const model = getInput("model");
@@ -8816,9 +8824,12 @@ async function runAction() {
   const files = await client.listChangedFiles(owner, repo, number);
   const configPath = getInput("config-path") || ".jev-gate.yml";
   const configText = await client.getFileAtRef(owner, repo, configPath, pr.baseSha);
+  const configWarnings = [];
   let config;
   try {
-    config = applyInputOverrides(configText === null ? resolveConfig({}) : loadConfigText(configText));
+    config = applyInputOverrides(
+      configText === null ? resolveConfig({}) : loadConfigText(configText, configWarnings)
+    );
   } catch (error) {
     if (error instanceof ConfigError) {
       fail(`the config at ${configPath}@${pr.baseSha.slice(0, 12)} is invalid: ${error.message}`);
@@ -8827,6 +8838,7 @@ async function runAction() {
     }
     throw error;
   }
+  for (const message of configWarnings) warn(`config: ${message}`);
   const keyEnv = PROVIDER_ENV_KEYS[config.provider];
   const apiKey = getInput("api-key") || process.env[keyEnv] || "";
   if (!apiKey) {

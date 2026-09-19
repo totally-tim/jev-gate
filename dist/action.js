@@ -52,9 +52,9 @@ function readEvent() {
         throw new Error("GITHUB_EVENT_PATH is not set; this entry point runs inside GitHub Actions");
     return JSON.parse(readFileSync(path, "utf8"));
 }
-function loadConfigText(text) {
+function loadConfigText(text, warnings) {
     const parsed = parseYaml(text);
-    return resolveConfig(validateConfigDocument(parsed));
+    return resolveConfig(validateConfigDocument(parsed, warnings));
 }
 function applyInputOverrides(config) {
     const model = getInput("model");
@@ -106,9 +106,10 @@ export async function runAction() {
     const files = await client.listChangedFiles(owner, repo, number);
     const configPath = getInput("config-path") || ".jev-gate.yml";
     const configText = await client.getFileAtRef(owner, repo, configPath, pr.baseSha);
+    const configWarnings = [];
     let config;
     try {
-        config = applyInputOverrides(configText === null ? resolveConfig({}) : loadConfigText(configText));
+        config = applyInputOverrides(configText === null ? resolveConfig({}) : loadConfigText(configText, configWarnings));
     }
     catch (error) {
         if (error instanceof ConfigError) {
@@ -118,6 +119,8 @@ export async function runAction() {
         }
         throw error;
     }
+    for (const message of configWarnings)
+        warn(`config: ${message}`);
     const keyEnv = PROVIDER_ENV_KEYS[config.provider];
     const apiKey = getInput("api-key") || process.env[keyEnv] || "";
     if (!apiKey) {
