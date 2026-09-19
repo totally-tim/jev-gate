@@ -5,6 +5,9 @@
   "license": "MIT",
   "private": true,
   "type": "module",
+  "bin": {
+    "jev-gate": "dist/bundle/cli.cjs"
+  },
   "engines": {
     "node": ">=20"
   },

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
-import { parseDiff } from "./cli.js";
+import { parseDiff, runCli } from "./cli.js";
 
 const SAMPLE = [
   "diff --git a/src/auth.ts b/src/auth.ts",
@@ -50,4 +54,23 @@ test("the diff parser keeps paths, statuses, and line counts", () => {
 
 test("text without diff headers yields no files", () => {
   assert.deepEqual(parseDiff("just some text\n"), []);
+});
+
+test("review rejects --diff and --base together, and an unknown command fails", async () => {
+  assert.equal(await runCli(["review", "--diff", "x.diff", "--base", "main"]), 2);
+  assert.equal(await runCli(["nonsense"]), 2);
+});
+
+test("no command prints usage and exits cleanly", async () => {
+  assert.equal(await runCli([]), 0);
+});
+
+test("the bundled CLI runs when invoked through a bin symlink", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jev-gate-bin-"));
+  const link = join(dir, "jev-gate");
+  symlinkSync(join(process.cwd(), "dist/bundle/cli.cjs"), link);
+  const result = spawnSync(process.execPath, [link], { encoding: "utf8" });
+  rmSync(dir, { recursive: true, force: true });
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /jev-gate: Jev-powered PR review rules/);
 });

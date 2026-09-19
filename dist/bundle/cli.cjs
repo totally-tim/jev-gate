@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 "use strict";
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -7367,7 +7368,7 @@ __export(cli_exports, {
   runCli: () => runCli
 });
 module.exports = __toCommonJS(cli_exports);
-var import_node_fs = require("node:fs");
+var import_node_fs2 = require("node:fs");
 var import_node_path = require("node:path");
 var import_yaml = __toESM(require_dist(), 1);
 
@@ -8258,13 +8259,94 @@ function resolveConfig(doc) {
 }
 
 // src/entry.ts
+var import_node_fs = require("node:fs");
 var import_node_url = require("node:url");
 var import_meta = {};
+function samePath(a, b) {
+  try {
+    return (0, import_node_fs.realpathSync)(a) === (0, import_node_fs.realpathSync)(b);
+  } catch {
+    return (0, import_node_url.pathToFileURL)(a).href === (0, import_node_url.pathToFileURL)(b).href;
+  }
+}
 function isMainModule() {
   const entry = process.argv[1];
   if (!entry) return false;
   const moduleFile = typeof __filename === "string" ? __filename : (0, import_node_url.fileURLToPath)(import_meta.url);
-  return (0, import_node_url.pathToFileURL)(entry).href === (0, import_node_url.pathToFileURL)(moduleFile).href;
+  return samePath(entry, moduleFile);
+}
+
+// src/gitdiff.ts
+var import_node_child_process = require("node:child_process");
+var import_node_util = require("node:util");
+var execGit = (0, import_node_util.promisify)(import_node_child_process.execFile);
+var CANDIDATE_BASES = ["origin/HEAD", "origin/main", "origin/master", "main", "master"];
+var MAX_UNTRACKED_FILES = 500;
+var MAX_BUFFER = 64 * 1024 * 1024;
+async function git(args, cwd) {
+  try {
+    const { stdout } = await execGit("git", [...args], { cwd, maxBuffer: MAX_BUFFER });
+    return stdout;
+  } catch (error) {
+    const stderr = error.stderr?.trim();
+    const detail = stderr && stderr !== "" ? stderr.replace(/^fatal:\s*/i, "") : error.message;
+    throw new ConfigError(`git ${args[0]} failed: ${detail}`);
+  }
+}
+async function revParse(ref, cwd) {
+  try {
+    const { stdout } = await execGit("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { cwd });
+    return stdout.trim() === "" ? null : stdout.trim();
+  } catch {
+    return null;
+  }
+}
+async function resolveBaseRef(explicit, cwd) {
+  if (explicit !== void 0) {
+    if (await revParse(explicit, cwd) === null) {
+      throw new ConfigError(`base ref ${explicit} does not resolve to a commit`);
+    }
+    return explicit;
+  }
+  for (const candidate of CANDIDATE_BASES) {
+    if (await revParse(candidate, cwd) !== null) return candidate;
+  }
+  throw new ConfigError(
+    `cannot detect a base branch (tried ${CANDIDATE_BASES.join(", ")}); pass --base <ref>`
+  );
+}
+async function untrackedPatches(cwd) {
+  const listed = (await git(["ls-files", "-z", "--others", "--exclude-standard"], cwd)).split("\0").filter((path) => path !== "");
+  if (listed.length === 0) return { patch: "", warning: null };
+  const warning = listed.length > MAX_UNTRACKED_FILES ? `skipped ${listed.length} untracked files (cap is ${MAX_UNTRACKED_FILES}); git add or gitignore them to bring them into the review` : null;
+  const paths = warning === null ? listed : listed.slice(0, MAX_UNTRACKED_FILES);
+  let patch = "";
+  for (const path of paths) {
+    try {
+      const { stdout } = await execGit("git", ["diff", "--no-index", "--no-color", "--", "/dev/null", path], {
+        cwd,
+        maxBuffer: MAX_BUFFER
+      });
+      patch += stdout;
+    } catch (error) {
+      patch += error.stdout ?? "";
+    }
+  }
+  return { patch, warning };
+}
+async function localDiff(explicitBase, cwd) {
+  const headSha = (await git(["rev-parse", "HEAD"], cwd)).trim();
+  const baseRef = await resolveBaseRef(explicitBase, cwd);
+  const baseSha = (await git(["merge-base", baseRef, "HEAD"], cwd)).trim();
+  const tracked = await git(["diff", "--no-color", "--no-ext-diff", baseSha], cwd);
+  const untracked = await untrackedPatches(cwd);
+  return {
+    diff: tracked + untracked.patch,
+    baseRef,
+    baseSha,
+    headSha,
+    warnings: untracked.warning === null ? [] : [untracked.warning]
+  };
 }
 
 // src/jev.ts
@@ -8600,15 +8682,22 @@ function mergeSecondAsk(decisions, second) {
 var USAGE = `jev-gate: Jev-powered PR review rules
 
 Usage:
-  jev-gate review --diff <file> [--title <text>] [--description <file>]
+  jev-gate review [--diff <file>|-] [--base <ref>] [--title <text>] [--description <file>]
                   [--config <file>] [--provider <name>] [--model <name>] [--json] [--no-gate]
+  jev-gate diff [--base <ref>]
   jev-gate calibrate --dir <dir> [--config <file>] [--provider <name>]
                      [--repeat <n>] [--solo] [--json]
 
-review reads a unified diff (for example \`git diff main...HEAD\`) and prints one concern
-probability per rule. It exits 1 when a gated rule reaches its threshold unless --no-gate
-is passed. The provider is typesafe (the default) or openrouter. The API key comes from
+review reads a unified diff from --diff (a file, or - for stdin), or builds the local change
+set when --diff is absent: the merge base with --base, the branch commits on top, and any
+uncommitted changes, in one diff. --base defaults to the repository's main branch
+(origin/HEAD, then origin/main, origin/master, main, or master). review prints one concern
+probability per rule and exits 1 when a gated rule reaches its threshold unless --no-gate is
+passed. The provider is typesafe (the default) or openrouter. The API key comes from
 --api-key, or from TYPESAFE_API_KEY for typesafe and OPENROUTER_API_KEY for openrouter.
+
+diff prints that local change set as a unified diff without calling Jev, for piping into
+review or another tool. Nothing to print means no changes against the base.
 
 calibrate runs the same rules over a directory of *.diff samples so thresholds can be set
 from data instead of guesses. --repeat runs each sample n times to show run-to-run spread.
@@ -8641,7 +8730,7 @@ function flagString(args, name) {
 }
 function loadConfigFile(path) {
   if (!path) return resolveConfig({});
-  const text = (0, import_node_fs.readFileSync)(path, "utf8");
+  const text = (0, import_node_fs2.readFileSync)(path, "utf8");
   const warnings = [];
   const config = resolveConfig(validateConfigDocument((0, import_yaml.parse)(text), warnings));
   for (const message of warnings) process.stderr.write(`warning: ${message}
@@ -8667,7 +8756,7 @@ function parseDiff(text) {
   }
   return files;
 }
-function syntheticPullRequest(title, description, files) {
+function syntheticPullRequest(title, description, files, overrides = {}) {
   return {
     owner: "local",
     repo: "local",
@@ -8682,7 +8771,8 @@ function syntheticPullRequest(title, description, files) {
     additions: files.reduce((sum, file) => sum + file.additions, 0),
     deletions: files.reduce((sum, file) => sum + file.deletions, 0),
     commits: 1,
-    htmlUrl: "local"
+    htmlUrl: "local",
+    ...overrides
   };
 }
 function applyProviderFlag(args, config) {
@@ -8705,22 +8795,39 @@ function requireApiKey(args, provider) {
 }
 async function commandReview(args) {
   const diffPath = flagString(args, "diff");
-  if (!diffPath) {
-    process.stderr.write("review needs --diff <file>\n");
+  const baseFlag = flagString(args, "base");
+  if (diffPath !== void 0 && baseFlag !== void 0) {
+    process.stderr.write("pass either --diff or --base, not both\n");
     return 2;
   }
   const config = applyProviderFlag(args, loadConfigFile(flagString(args, "config")));
   const model = flagString(args, "model");
   if (model) config.model = model;
-  const diffText = (0, import_node_fs.readFileSync)(diffPath, "utf8");
+  const descriptionPath = flagString(args, "description");
+  const description = descriptionPath ? (0, import_node_fs2.readFileSync)(descriptionPath, "utf8") : "";
+  let diffText;
+  let overrides = {};
+  if (diffPath === void 0) {
+    const local = await localDiff(baseFlag);
+    if (local.diff.trim() === "") {
+      process.stderr.write(`no changes against ${local.baseRef} (${local.baseSha.slice(0, 12)})
+`);
+      return 0;
+    }
+    diffText = local.diff;
+    overrides = { baseRef: local.baseRef, baseSha: local.baseSha, headSha: local.headSha };
+    for (const warning of local.warnings) process.stderr.write(`warning: ${warning}
+`);
+  } else {
+    diffText = diffPath === "-" ? (0, import_node_fs2.readFileSync)(0, "utf8") : (0, import_node_fs2.readFileSync)(diffPath, "utf8");
+  }
   const files = parseDiff(diffText);
   if (files.length === 0) {
     process.stderr.write("the diff contains no file changes\n");
     return 2;
   }
-  const descriptionPath = flagString(args, "description");
-  const description = descriptionPath ? (0, import_node_fs.readFileSync)(descriptionPath, "utf8") : "";
-  const pr = syntheticPullRequest(flagString(args, "title") ?? "local diff", description, files);
+  const fallbackTitle = diffPath === void 0 ? `local diff against ${overrides.baseRef}` : "local diff";
+  const pr = syntheticPullRequest(flagString(args, "title") ?? fallbackTitle, description, files, overrides);
   const outcome = await runReview({ pr, files, config, apiKey: requireApiKey(args, config.provider) });
   if (args.flags.has("json")) {
     process.stdout.write(`${JSON.stringify(outcome, null, 2)}
@@ -8745,10 +8852,22 @@ model ${outcome.model} \xB7 ${Math.round(outcome.latencyMs)} ms \xB7 ${outcome.i
   if ((outcome.failedGates.length > 0 || outcome.erroredGates.length > 0) && !args.flags.has("no-gate")) return 1;
   return 0;
 }
+async function commandDiff(args) {
+  const local = await localDiff(flagString(args, "base"));
+  for (const warning of local.warnings) process.stderr.write(`warning: ${warning}
+`);
+  if (local.diff.trim() === "") {
+    process.stderr.write(`no changes against ${local.baseRef} (${local.baseSha.slice(0, 12)})
+`);
+    return 0;
+  }
+  process.stdout.write(local.diff);
+  return 0;
+}
 function listDiffSamples(dir) {
   const found = [];
   const walk = (current, prefix) => {
-    for (const entry of (0, import_node_fs.readdirSync)(current, { withFileTypes: true })) {
+    for (const entry of (0, import_node_fs2.readdirSync)(current, { withFileTypes: true })) {
       const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.isDirectory()) {
         walk((0, import_node_path.join)(current, entry.name), relative);
@@ -8794,7 +8913,7 @@ async function commandCalibrate(args) {
   }
   const results = [];
   for (const sample of samples) {
-    const files = parseDiff((0, import_node_fs.readFileSync)((0, import_node_path.join)(dir, sample), "utf8"));
+    const files = parseDiff((0, import_node_fs2.readFileSync)((0, import_node_path.join)(dir, sample), "utf8"));
     const pr = syntheticPullRequest(sample, "", files);
     const values = new Map(enabledRules.map((rule) => [rule.name, []]));
     for (let run = 0; run < repeat; run += 1) {
@@ -8878,6 +8997,7 @@ async function runCli(argv) {
   const command = args.positionals[0];
   try {
     if (command === "review") return await commandReview(args);
+    if (command === "diff") return await commandDiff(args);
     if (command === "calibrate") return await commandCalibrate(args);
     process.stdout.write(USAGE);
     return command === void 0 ? 0 : 2;

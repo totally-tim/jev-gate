@@ -7370,7 +7370,7 @@ __export(action_exports, {
   warn: () => warn
 });
 module.exports = __toCommonJS(action_exports);
-var import_node_fs = require("node:fs");
+var import_node_fs2 = require("node:fs");
 var import_yaml = __toESM(require_dist(), 1);
 
 // node_modules/@typesafe-ai/sdk/dist/index.mjs
@@ -8260,13 +8260,21 @@ function resolveConfig(doc) {
 }
 
 // src/entry.ts
+var import_node_fs = require("node:fs");
 var import_node_url = require("node:url");
 var import_meta = {};
+function samePath(a, b) {
+  try {
+    return (0, import_node_fs.realpathSync)(a) === (0, import_node_fs.realpathSync)(b);
+  } catch {
+    return (0, import_node_url.pathToFileURL)(a).href === (0, import_node_url.pathToFileURL)(b).href;
+  }
+}
 function isMainModule() {
   const entry = process.argv[1];
   if (!entry) return false;
   const moduleFile = typeof __filename === "string" ? __filename : (0, import_node_url.fileURLToPath)(import_meta.url);
-  return (0, import_node_url.pathToFileURL)(entry).href === (0, import_node_url.pathToFileURL)(moduleFile).href;
+  return samePath(entry, moduleFile);
 }
 
 // src/render.ts
@@ -8834,12 +8842,12 @@ function setOutput(name, value) {
   const file = process.env.GITHUB_OUTPUT;
   if (!file) return;
   if (!value.includes("\n")) {
-    (0, import_node_fs.appendFileSync)(file, `${name}=${value}
+    (0, import_node_fs2.appendFileSync)(file, `${name}=${value}
 `);
     return;
   }
   const delimiter = `__JEV_GATE_${name.toUpperCase().replaceAll("-", "_")}__`;
-  (0, import_node_fs.appendFileSync)(file, `${name}<<${delimiter}
+  (0, import_node_fs2.appendFileSync)(file, `${name}<<${delimiter}
 ${value}
 ${delimiter}
 `);
@@ -8847,12 +8855,12 @@ ${delimiter}
 function writeSummary(markdown) {
   const file = process.env.GITHUB_STEP_SUMMARY;
   if (!file) return;
-  (0, import_node_fs.appendFileSync)(file, markdown);
+  (0, import_node_fs2.appendFileSync)(file, markdown);
 }
 function readEvent() {
   const path = process.env.GITHUB_EVENT_PATH;
   if (!path) throw new Error("GITHUB_EVENT_PATH is not set; this entry point runs inside GitHub Actions");
-  return JSON.parse((0, import_node_fs.readFileSync)(path, "utf8"));
+  return JSON.parse((0, import_node_fs2.readFileSync)(path, "utf8"));
 }
 function loadConfigText(text, warnings) {
   const parsed = (0, import_yaml.parse)(text);

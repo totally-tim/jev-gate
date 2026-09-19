@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { ConfigError, DEFAULT_MODELS, resolveConfig, validateConfigDocument } from "./config.js";
 import { isMainModule } from "./entry.js";
+import { localDiff } from "./gitdiff.js";
 import { PROVIDER_ENV_KEYS } from "./jev.js";
 import { renderPlainTable } from "./render.js";
 import { rulesHashFor, runReview } from "./review.js";
@@ -11,15 +12,22 @@ import type { DiffFile, PullRequestContext, ResolvedConfig } from "./types.js";
 const USAGE = `jev-gate: Jev-powered PR review rules
 
 Usage:
-  jev-gate review --diff <file> [--title <text>] [--description <file>]
+  jev-gate review [--diff <file>|-] [--base <ref>] [--title <text>] [--description <file>]
                   [--config <file>] [--provider <name>] [--model <name>] [--json] [--no-gate]
+  jev-gate diff [--base <ref>]
   jev-gate calibrate --dir <dir> [--config <file>] [--provider <name>]
                      [--repeat <n>] [--solo] [--json]
 
-review reads a unified diff (for example \`git diff main...HEAD\`) and prints one concern
-probability per rule. It exits 1 when a gated rule reaches its threshold unless --no-gate
-is passed. The provider is typesafe (the default) or openrouter. The API key comes from
+review reads a unified diff from --diff (a file, or - for stdin), or builds the local change
+set when --diff is absent: the merge base with --base, the branch commits on top, and any
+uncommitted changes, in one diff. --base defaults to the repository's main branch
+(origin/HEAD, then origin/main, origin/master, main, or master). review prints one concern
+probability per rule and exits 1 when a gated rule reaches its threshold unless --no-gate is
+passed. The provider is typesafe (the default) or openrouter. The API key comes from
 --api-key, or from TYPESAFE_API_KEY for typesafe and OPENROUTER_API_KEY for openrouter.
+
+diff prints that local change set as a unified diff without calling Jev, for piping into
+review or another tool. Nothing to print means no changes against the base.
 
 calibrate runs the same rules over a directory of *.diff samples so thresholds can be set
 from data instead of guesses. --repeat runs each sample n times to show run-to-run spread.
@@ -87,7 +95,12 @@ export function parseDiff(text: string): DiffFile[] {
   return files;
 }
 
-function syntheticPullRequest(title: string, description: string, files: readonly DiffFile[]): PullRequestContext {
+function syntheticPullRequest(
+  title: string,
+  description: string,
+  files: readonly DiffFile[],
+  overrides: Partial<PullRequestContext> = {},
+): PullRequestContext {
   return {
     owner: "local",
     repo: "local",
@@ -103,6 +116,7 @@ function syntheticPullRequest(title: string, description: string, files: readonl
     deletions: files.reduce((sum, file) => sum + file.deletions, 0),
     commits: 1,
     htmlUrl: "local",
+    ...overrides,
   };
 }
 
@@ -129,22 +143,39 @@ function requireApiKey(args: ParsedArgs, provider: ResolvedConfig["provider"]): 
 
 async function commandReview(args: ParsedArgs): Promise<number> {
   const diffPath = flagString(args, "diff");
-  if (!diffPath) {
-    process.stderr.write("review needs --diff <file>\n");
+  const baseFlag = flagString(args, "base");
+  if (diffPath !== undefined && baseFlag !== undefined) {
+    process.stderr.write("pass either --diff or --base, not both\n");
     return 2;
   }
   const config = applyProviderFlag(args, loadConfigFile(flagString(args, "config")));
   const model = flagString(args, "model");
   if (model) config.model = model;
-  const diffText = readFileSync(diffPath, "utf8");
+  const descriptionPath = flagString(args, "description");
+  const description = descriptionPath ? readFileSync(descriptionPath, "utf8") : "";
+
+  // No --diff means local mode: the change set against the base ref, uncommitted work included.
+  let diffText: string;
+  let overrides: Partial<PullRequestContext> = {};
+  if (diffPath === undefined) {
+    const local = await localDiff(baseFlag);
+    if (local.diff.trim() === "") {
+      process.stderr.write(`no changes against ${local.baseRef} (${local.baseSha.slice(0, 12)})\n`);
+      return 0;
+    }
+    diffText = local.diff;
+    overrides = { baseRef: local.baseRef, baseSha: local.baseSha, headSha: local.headSha };
+    for (const warning of local.warnings) process.stderr.write(`warning: ${warning}\n`);
+  } else {
+    diffText = diffPath === "-" ? readFileSync(0, "utf8") : readFileSync(diffPath, "utf8");
+  }
   const files = parseDiff(diffText);
   if (files.length === 0) {
     process.stderr.write("the diff contains no file changes\n");
     return 2;
   }
-  const descriptionPath = flagString(args, "description");
-  const description = descriptionPath ? readFileSync(descriptionPath, "utf8") : "";
-  const pr = syntheticPullRequest(flagString(args, "title") ?? "local diff", description, files);
+  const fallbackTitle = diffPath === undefined ? `local diff against ${overrides.baseRef}` : "local diff";
+  const pr = syntheticPullRequest(flagString(args, "title") ?? fallbackTitle, description, files, overrides);
   const outcome = await runReview({ pr, files, config, apiKey: requireApiKey(args, config.provider) });
   if (args.flags.has("json")) {
     process.stdout.write(`${JSON.stringify(outcome, null, 2)}\n`);
@@ -161,6 +192,18 @@ async function commandReview(args: ParsedArgs): Promise<number> {
     }
   }
   if ((outcome.failedGates.length > 0 || outcome.erroredGates.length > 0) && !args.flags.has("no-gate")) return 1;
+  return 0;
+}
+
+/** Print the local change set as a unified diff; no model call, safe to pipe. */
+async function commandDiff(args: ParsedArgs): Promise<number> {
+  const local = await localDiff(flagString(args, "base"));
+  for (const warning of local.warnings) process.stderr.write(`warning: ${warning}\n`);
+  if (local.diff.trim() === "") {
+    process.stderr.write(`no changes against ${local.baseRef} (${local.baseSha.slice(0, 12)})\n`);
+    return 0;
+  }
+  process.stdout.write(local.diff);
   return 0;
 }
 
@@ -310,6 +353,7 @@ export async function runCli(argv: readonly string[]): Promise<number> {
   const command = args.positionals[0];
   try {
     if (command === "review") return await commandReview(args);
+    if (command === "diff") return await commandDiff(args);
     if (command === "calibrate") return await commandCalibrate(args);
     process.stdout.write(USAGE);
     return command === undefined ? 0 : 2;
