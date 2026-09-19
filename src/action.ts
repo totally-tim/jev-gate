@@ -1,8 +1,9 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
-import { ConfigError, resolveConfig, validateConfigDocument } from "./config.js";
+import { ConfigError, DEFAULT_MODELS, resolveConfig, validateConfigDocument } from "./config.js";
 import { isMainModule } from "./entry.js";
 import { GitHubClient, GitHubError } from "./github.js";
+import { PROVIDER_ENV_KEYS } from "./jev.js";
 import { renderComment, renderSummary } from "./render.js";
 import { runReview } from "./review.js";
 import type { ResolvedConfig } from "./types.js";
@@ -70,9 +71,18 @@ function loadConfigText(text: string): ResolvedConfig {
 function applyInputOverrides(config: ResolvedConfig): ResolvedConfig {
   const model = getInput("model");
   const maxStateTokens = getInput("max-state-tokens");
+  const providerInput = getInput("provider");
+  let provider = config.provider;
+  if (providerInput) {
+    if (providerInput !== "typesafe" && providerInput !== "openrouter") {
+      throw new ConfigError(`provider must be typesafe or openrouter, not ${providerInput}`);
+    }
+    provider = providerInput;
+  }
   return {
     ...config,
-    model: model || config.model,
+    provider,
+    model: model || (provider !== config.provider ? DEFAULT_MODELS[provider] : config.model),
     maxStateTokens: maxStateTokens ? Number(maxStateTokens) : config.maxStateTokens,
   };
 }
@@ -94,16 +104,6 @@ export async function runAction(): Promise<number> {
   const number = event.pull_request?.number;
   if (!repository || !number) return skip("the event payload carries no pull request");
 
-  const apiKey = getInput("api-key");
-  if (!apiKey) {
-    const onMissing = getInput("on-missing-key") || "skip";
-    if (onMissing === "fail") {
-      fail("no api-key input was provided and on-missing-key is fail");
-      setOutput("passed", "failed");
-      return 1;
-    }
-    return skip("no api-key input was provided (expected for fork pull requests under the pull_request event)");
-  }
   const token = getInput("github-token") || process.env.GITHUB_TOKEN || "";
   if (!token) {
     fail("no github-token input or GITHUB_TOKEN environment variable is available");
@@ -132,6 +132,19 @@ export async function runAction(): Promise<number> {
       return 1;
     }
     throw error;
+  }
+
+  const keyEnv = PROVIDER_ENV_KEYS[config.provider];
+  const apiKey = getInput("api-key") || process.env[keyEnv] || "";
+  if (!apiKey) {
+    const onMissing = getInput("on-missing-key") || "skip";
+    const reason = `no api-key input and no ${keyEnv} in the environment (expected for fork pull requests under the pull_request event)`;
+    if (onMissing === "fail") {
+      fail(reason);
+      setOutput("passed", "failed");
+      return 1;
+    }
+    return skip(reason);
   }
 
   const timeoutMs = Number(getInput("timeout-ms") || "30000");

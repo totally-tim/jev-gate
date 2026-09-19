@@ -21,6 +21,32 @@ test("rule overrides replace gate and threshold", () => {
   assert.equal(rule?.threshold, 0.9);
 });
 
+test("providers select the default model and validate their settings", () => {
+  const typesafe = resolveConfig(validateConfigDocument({}));
+  assert.equal(typesafe.provider, "typesafe");
+  assert.equal(typesafe.model, "jev-latest");
+
+  const openrouter = resolveConfig(validateConfigDocument({ provider: "openrouter" }));
+  assert.equal(openrouter.model, "~typesafe/jev-latest");
+
+  const pinned = resolveConfig(
+    validateConfigDocument({ provider: "openrouter", model: "typesafe/jev-1.13" }),
+  );
+  assert.equal(pinned.model, "typesafe/jev-1.13");
+
+  const withSettings = resolveConfig(
+    validateConfigDocument({
+      provider: "openrouter",
+      openrouter: { referer: "https://example.test", title: "example" },
+    }),
+  );
+  assert.deepEqual(withSettings.openrouter, { referer: "https://example.test", title: "example" });
+
+  assert.throws(() => validateConfigDocument({ provider: "gemini" }), ConfigError);
+  assert.throws(() => validateConfigDocument({ openrouter: { referer: "" } }), ConfigError);
+  assert.throws(() => validateConfigDocument({ openrouter: { site: "example" } }), ConfigError);
+});
+
 test("unknown rule names and settings are rejected", () => {
   assert.throws(() => validateConfigDocument({ rules: { nonsense: { gate: true } } }), ConfigError);
   assert.throws(() => validateConfigDocument({ rules: { "breaking-change": { level: 1 } } }), ConfigError);

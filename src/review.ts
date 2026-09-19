@@ -25,6 +25,7 @@ export async function runReview(input: ReviewCoreInput): Promise<ReviewOutcome> 
   const { state, truncatedPaths } = buildState(input.pr, input.files, input.config);
   const questions = buildQuestions(enabled);
   const response = await runJevReview({
+    provider: input.config.provider,
     apiKey: input.apiKey,
     model: input.config.model,
     state,
@@ -34,6 +35,7 @@ export async function runReview(input: ReviewCoreInput): Promise<ReviewOutcome> 
     timeoutMs: input.timeoutMs,
     signal: input.signal,
     retry: input.retry,
+    app: input.config.openrouter,
   });
   const decisions = evaluate(enabled, response.answers);
   const failedGates = decisions.filter((decision) => decision.failed).map((decision) => decision.name);

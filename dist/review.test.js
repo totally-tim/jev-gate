@@ -30,11 +30,11 @@ const files = [
         patch: "@@ -1,2 +1,5 @@\n-old\n+new\n",
     },
 ];
-/** A fake TypeSafe endpoint that answers every question with the supplied probability. */
+/** A fake decisions endpoint that answers every question with the supplied probability. */
 function fakeEndpoint(calls, probability) {
     return async (input, init) => {
         const body = JSON.parse(String(init?.body));
-        calls.push({ url: String(input), body });
+        calls.push({ url: String(input), headers: (init?.headers ?? {}), body });
         const answers = {};
         for (const [name, question] of Object.entries(body.questions)) {
             const value = name === "danger-sensitive-area" ? probability : 0.1;
@@ -84,6 +84,23 @@ test("a clean review passes all gates", async () => {
     });
     assert.equal(outcome.passed, true);
     assert.deepEqual(outcome.failedGates, []);
+});
+test("the openrouter provider uses the decisions endpoint and the provider model", async () => {
+    const calls = [];
+    const outcome = await runReview({
+        pr: pullRequest(),
+        files,
+        config: resolveConfig(validateConfigDocument({ provider: "openrouter" })),
+        apiKey: "test-key",
+        baseURL: "http://openrouter.test",
+        fetchImpl: fakeEndpoint(calls, 0.8),
+    });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]?.url, "http://openrouter.test/api/alpha/decisions");
+    assert.equal(calls[0]?.headers["Authorization"], "Bearer test-key");
+    assert.equal(calls[0]?.body.model, "~typesafe/jev-latest");
+    assert.equal(Object.keys(calls[0]?.body.questions ?? {}).length, 7);
+    assert.deepEqual(outcome.failedGates, ["danger-sensitive-area"]);
 });
 test("an API failure surfaces instead of passing silently", async () => {
     const fetchImpl = async () => new Response("nope", { status: 500 });

@@ -19,4 +19,5 @@ jobs:
     steps:
       - uses: timkraus/jev-gate@v1
         with:
+          # Either provider's key works here; set `provider` in .jev-gate.yml to choose.
           api-key: ${{ secrets.TYPESAFE_API_KEY }}

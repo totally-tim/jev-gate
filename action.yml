@@ -9,8 +9,9 @@ branding:
 inputs:
   api-key:
     description: >-
-      TypeSafe API key (store it as a repository secret). Pull requests from forks receive
-      no secrets under the pull_request event; see the README for the pull_request_target option.
+      API key for the configured provider: a TypeSafe key or an OpenRouter key (store it
+      as a repository secret). Pull requests from forks receive no secrets under the
+      pull_request event; see the README for the pull_request_target option.
     required: false
   github-token:
     description: Token used to read the pull request and post the sticky comment.
@@ -20,8 +21,12 @@ inputs:
     description: Path to the config file, read from the pull request's base commit.
     required: false
     default: .jev-gate.yml
+  provider:
+    description: >-
+      Decisions provider: "typesafe" (the default) or "openrouter". Overrides the config file.
+    required: false
   model:
-    description: Jev model override; defaults to the config file or jev-latest.
+    description: Jev model override; defaults to the config file or the provider's latest model.
     required: false
   comment:
     description: Set to "false" to skip the sticky comment and rely on the check and job summary.

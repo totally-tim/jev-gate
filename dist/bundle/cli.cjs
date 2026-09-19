@@ -8104,6 +8104,10 @@ function evaluate(rules, answers) {
 // src/config.ts
 var ConfigError = class extends Error {
 };
+var DEFAULT_MODELS = {
+  typesafe: "jev-latest",
+  openrouter: "~typesafe/jev-latest"
+};
 var DEFAULT_IGNORE = [
   "**/node_modules/**",
   "**/package-lock.json",
@@ -8120,7 +8124,7 @@ var DEFAULT_IGNORE = [
   "**/*.map",
   "**/dist/**"
 ];
-var DEFAULT_MODEL = "jev-latest";
+var DEFAULT_MODEL = DEFAULT_MODELS.typesafe;
 var DEFAULT_MAX_STATE_TOKENS = 24e3;
 var MIN_STATE_TOKENS = 2e3;
 var MAX_STATE_TOKENS = 3e4;
@@ -8145,13 +8149,34 @@ function readRuleOverride(name, raw) {
   }
   return override;
 }
+function readOpenRouterSettings(raw) {
+  if (!isRecord2(raw)) throw new ConfigError("openrouter must be a mapping");
+  const settings = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (key !== "referer" && key !== "title") {
+      throw new ConfigError(`openrouter.${key} is not a known setting`);
+    }
+    if (typeof value !== "string" || value.trim() === "") {
+      throw new ConfigError(`openrouter.${key} must be a non-empty string`);
+    }
+    settings[key] = value.trim();
+  }
+  return settings;
+}
 function validateConfigDocument(raw) {
   if (raw === null || raw === void 0) return {};
   if (!isRecord2(raw)) throw new ConfigError("the config file must be a YAML mapping");
   const doc = {};
   const knownRules = new Set(RULE_DEFINITIONS.map((rule) => rule.name));
   for (const [key, value] of Object.entries(raw)) {
-    if (key === "model") {
+    if (key === "provider") {
+      if (value !== "typesafe" && value !== "openrouter") {
+        throw new ConfigError("provider must be typesafe or openrouter");
+      }
+      doc.provider = value;
+    } else if (key === "openrouter") {
+      doc.openrouter = readOpenRouterSettings(value);
+    } else if (key === "model") {
       if (typeof value !== "string" || value.trim() === "") throw new ConfigError("model must be a non-empty string");
       doc.model = value.trim();
     } else if (key === "maxStateTokens") {
@@ -8195,11 +8220,13 @@ function resolveConfig(doc) {
     };
   });
   return {
-    model: doc.model ?? DEFAULT_MODEL,
+    provider: doc.provider ?? "typesafe",
+    model: doc.model ?? DEFAULT_MODELS[doc.provider ?? "typesafe"],
     maxStateTokens: doc.maxStateTokens ?? DEFAULT_MAX_STATE_TOKENS,
     ignore: doc.ignore ?? DEFAULT_IGNORE,
     comment: doc.comment ?? true,
-    rules
+    rules,
+    openrouter: doc.openrouter ?? {}
   };
 }
 
@@ -8211,6 +8238,127 @@ function isMainModule() {
   if (!entry) return false;
   const moduleFile = typeof __filename === "string" ? __filename : (0, import_node_url.fileURLToPath)(import_meta.url);
   return (0, import_node_url.pathToFileURL)(entry).href === (0, import_node_url.pathToFileURL)(moduleFile).href;
+}
+
+// src/jev.ts
+var USD_PER_INPUT_TOKEN = 0.042 / 1e6;
+var costUSD = (inputTokens) => inputTokens * USD_PER_INPUT_TOKEN;
+var PROVIDER_ENV_KEYS = {
+  typesafe: "TYPESAFE_API_KEY",
+  openrouter: "OPENROUTER_API_KEY"
+};
+var JevProviderError = class extends Error {
+  constructor(message, status2) {
+    super(message);
+    this.status = status2;
+  }
+};
+async function runJevReview(request) {
+  if (request.provider === "typesafe") return runTypeSafe(request);
+  if (request.provider === "openrouter") return runOpenRouter(request);
+  throw new JevProviderError(`unknown provider: ${String(request.provider)}`, null);
+}
+async function runTypeSafe(request) {
+  const client = new TypeSafeClient({
+    apiKey: request.apiKey,
+    baseURL: request.baseURL,
+    defaultModel: request.model,
+    fetch: request.fetchImpl,
+    timeout: request.timeoutMs ?? 2e4,
+    retry: request.retry,
+    logLevel: "off"
+  });
+  const started = performance.now();
+  const result = await client.systemOne(
+    { state: request.state, questions: request.questions },
+    { signal: request.signal }
+  );
+  return {
+    model: result.model,
+    answers: result.answers,
+    inputTokens: result.usage.input_tokens,
+    outputTokens: result.usage.output_tokens,
+    latencyMs: performance.now() - started
+  };
+}
+var OPENROUTER_DEFAULT_BASE = "https://openrouter.ai";
+var RETRYABLE_STATUSES = /* @__PURE__ */ new Set([408, 429, 500, 502, 503, 504, 529]);
+var sleep2 = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
+var numberOr = (value, fallback) => typeof value === "number" && Number.isFinite(value) ? value : fallback;
+function withTimeout(signal, timeoutMs) {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  if (!signal) return timeout;
+  return typeof AbortSignal.any === "function" ? AbortSignal.any([signal, timeout]) : timeout;
+}
+async function errorDetail(response) {
+  try {
+    const payload = await response.json();
+    const message = payload.error?.message ?? payload.message;
+    return message ? `: ${message}` : "";
+  } catch {
+    return "";
+  }
+}
+async function runOpenRouter(request) {
+  const base = (request.baseURL ?? process.env.OPENROUTER_BASE_URL ?? OPENROUTER_DEFAULT_BASE).replace(
+    /\/+$/,
+    ""
+  );
+  const url = `${base}/api/alpha/decisions`;
+  const maxRetries = request.retry?.maxRetries ?? 2;
+  const backoffMs = request.retry?.backoffInitialMs ?? 500;
+  const timeoutMs = request.timeoutMs ?? 2e4;
+  const fetchImpl = request.fetchImpl ?? fetch;
+  const headers = {
+    Authorization: `Bearer ${request.apiKey}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    "User-Agent": "jev-gate"
+  };
+  if (request.app?.referer) headers["HTTP-Referer"] = request.app.referer;
+  if (request.app?.title) {
+    headers["X-Title"] = request.app.title;
+    headers["X-OpenRouter-Title"] = request.app.title;
+  }
+  const body = JSON.stringify({ model: request.model, state: request.state, questions: request.questions });
+  const started = performance.now();
+  let lastError = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    if (attempt > 0) await sleep2(backoffMs * 2 ** (attempt - 1));
+    let response;
+    try {
+      response = await fetchImpl(url, {
+        method: "POST",
+        headers,
+        body,
+        signal: withTimeout(request.signal, timeoutMs)
+      });
+    } catch (error) {
+      lastError = new JevProviderError(
+        `OpenRouter request failed: ${error instanceof Error ? error.message : String(error)}`,
+        null
+      );
+      if (attempt === maxRetries) break;
+      continue;
+    }
+    if (!response.ok) {
+      lastError = new JevProviderError(`OpenRouter answered ${response.status}${await errorDetail(response)}`, response.status);
+      if (!RETRYABLE_STATUSES.has(response.status) || attempt === maxRetries) throw lastError;
+      continue;
+    }
+    const payload = await response.json();
+    if (typeof payload.answers !== "object" || payload.answers === null || Array.isArray(payload.answers)) {
+      throw new JevProviderError("OpenRouter response carried no answers object", null);
+    }
+    return {
+      model: typeof payload.model === "string" ? payload.model : request.model,
+      answers: payload.answers,
+      inputTokens: numberOr(payload.usage?.input_tokens ?? payload.usage?.prompt_tokens, 0),
+      outputTokens: numberOr(payload.usage?.output_tokens ?? payload.usage?.completion_tokens, 0),
+      latencyMs: performance.now() - started
+    };
+  }
+  throw lastError ?? new JevProviderError("OpenRouter request failed", null);
 }
 
 // src/render.ts
@@ -8331,33 +8479,6 @@ function buildState(pr, files, config) {
   return { state, truncatedPaths };
 }
 
-// src/jev.ts
-var USD_PER_INPUT_TOKEN = 0.042 / 1e6;
-var costUSD = (inputTokens) => inputTokens * USD_PER_INPUT_TOKEN;
-async function runJevReview(request) {
-  const client = new TypeSafeClient({
-    apiKey: request.apiKey,
-    baseURL: request.baseURL,
-    defaultModel: request.model,
-    fetch: request.fetchImpl,
-    timeout: request.timeoutMs ?? 2e4,
-    retry: request.retry,
-    logLevel: "off"
-  });
-  const started = performance.now();
-  const result = await client.systemOne(
-    { state: request.state, questions: request.questions },
-    { signal: request.signal }
-  );
-  return {
-    model: result.model,
-    answers: result.answers,
-    inputTokens: result.usage.input_tokens,
-    outputTokens: result.usage.output_tokens,
-    latencyMs: performance.now() - started
-  };
-}
-
 // src/review.ts
 async function runReview(input) {
   const enabled = input.config.rules.filter((rule) => rule.enabled);
@@ -8367,6 +8488,7 @@ async function runReview(input) {
   const { state, truncatedPaths } = buildState(input.pr, input.files, input.config);
   const questions = buildQuestions(enabled);
   const response = await runJevReview({
+    provider: input.config.provider,
     apiKey: input.apiKey,
     model: input.config.model,
     state,
@@ -8375,7 +8497,8 @@ async function runReview(input) {
     fetchImpl: input.fetchImpl,
     timeoutMs: input.timeoutMs,
     signal: input.signal,
-    retry: input.retry
+    retry: input.retry,
+    app: input.config.openrouter
   });
   const decisions = evaluate(enabled, response.answers);
   const failedGates = decisions.filter((decision) => decision.failed).map((decision) => decision.name);
@@ -8402,12 +8525,13 @@ var USAGE = `jev-gate: Jev-powered PR review rules
 
 Usage:
   jev-gate review --diff <file> [--title <text>] [--description <file>]
-                  [--config <file>] [--model <name>] [--json] [--no-gate]
-  jev-gate calibrate --dir <dir> [--config <file>] [--json]
+                  [--config <file>] [--provider <name>] [--model <name>] [--json] [--no-gate]
+  jev-gate calibrate --dir <dir> [--config <file>] [--provider <name>] [--json]
 
 review reads a unified diff (for example \`git diff main...HEAD\`) and prints one concern
 probability per rule. It exits 1 when a gated rule reaches its threshold unless --no-gate
-is passed. The API key comes from TYPESAFE_API_KEY or --api-key.
+is passed. The provider is typesafe (the default) or openrouter. The API key comes from
+--api-key, or from TYPESAFE_API_KEY for typesafe and OPENROUTER_API_KEY for openrouter.
 
 calibrate runs the same rules over a directory of *.diff samples so thresholds can be set
 from data instead of guesses.
@@ -8478,9 +8602,22 @@ function syntheticPullRequest(title, description, files) {
     htmlUrl: "local"
   };
 }
-function requireApiKey(args) {
-  const key = flagString(args, "api-key") ?? process.env.TYPESAFE_API_KEY ?? "";
-  if (!key) throw new ConfigError("no API key: set TYPESAFE_API_KEY or pass --api-key");
+function applyProviderFlag(args, config) {
+  const provider = flagString(args, "provider");
+  if (!provider) return config;
+  if (provider !== "typesafe" && provider !== "openrouter") {
+    throw new ConfigError(`provider must be typesafe or openrouter, not ${provider}`);
+  }
+  return {
+    ...config,
+    provider,
+    model: flagString(args, "model") || (provider !== config.provider ? DEFAULT_MODELS[provider] : config.model)
+  };
+}
+function requireApiKey(args, provider) {
+  const envKey = PROVIDER_ENV_KEYS[provider];
+  const key = flagString(args, "api-key") ?? process.env[envKey] ?? "";
+  if (!key) throw new ConfigError(`no API key: set ${envKey} or pass --api-key`);
   return key;
 }
 async function commandReview(args) {
@@ -8489,7 +8626,7 @@ async function commandReview(args) {
     process.stderr.write("review needs --diff <file>\n");
     return 2;
   }
-  const config = loadConfigFile(flagString(args, "config"));
+  const config = applyProviderFlag(args, loadConfigFile(flagString(args, "config")));
   const model = flagString(args, "model");
   if (model) config.model = model;
   const diffText = (0, import_node_fs.readFileSync)(diffPath, "utf8");
@@ -8501,7 +8638,7 @@ async function commandReview(args) {
   const descriptionPath = flagString(args, "description");
   const description = descriptionPath ? (0, import_node_fs.readFileSync)(descriptionPath, "utf8") : "";
   const pr = syntheticPullRequest(flagString(args, "title") ?? "local diff", description, files);
-  const outcome = await runReview({ pr, files, config, apiKey: requireApiKey(args) });
+  const outcome = await runReview({ pr, files, config, apiKey: requireApiKey(args, config.provider) });
   if (args.flags.has("json")) {
     process.stdout.write(`${JSON.stringify(outcome, null, 2)}
 `);
@@ -8527,8 +8664,8 @@ async function commandCalibrate(args) {
     process.stderr.write("calibrate needs --dir <dir>\n");
     return 2;
   }
-  const config = loadConfigFile(flagString(args, "config"));
-  const apiKey = requireApiKey(args);
+  const config = applyProviderFlag(args, loadConfigFile(flagString(args, "config")));
+  const apiKey = requireApiKey(args, config.provider);
   const samples = (0, import_node_fs.readdirSync)(dir).filter((name) => name.endsWith(".diff")).sort();
   if (samples.length === 0) {
     process.stderr.write(`no *.diff samples in ${(0, import_node_path.resolve)(dir)}

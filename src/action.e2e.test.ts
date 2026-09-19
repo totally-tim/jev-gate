@@ -15,6 +15,8 @@ interface MockState {
   /** Probability Jev reports for danger-sensitive-area. */
   dangerProbability: number;
   comments: string[];
+  /** Decision endpoint paths the action called. */
+  paths: string[];
 }
 
 /** A mock that speaks just enough GitHub and TypeSafe for one action run. */
@@ -29,7 +31,8 @@ function startMockServer(state: MockState): Promise<{ url: string; close: () => 
         response.writeHead(status, { "content-type": contentType });
         response.end(typeof payload === "string" ? payload : JSON.stringify(payload));
       };
-      if (url.pathname === "/v1/systemone") {
+      if (url.pathname === "/v1/systemone" || url.pathname === "/api/alpha/decisions") {
+        state.paths.push(url.pathname);
         const parsed = JSON.parse(body) as { questions: Record<string, { type: string }> };
         const answers: Record<string, unknown> = {};
         for (const [name, question] of Object.entries(parsed.questions)) {
@@ -98,7 +101,10 @@ function startMockServer(state: MockState): Promise<{ url: string; close: () => 
   });
 }
 
-async function runAction(state: MockState): Promise<{ code: number; outputs: string; summary: string; log: string }> {
+async function runAction(
+  state: MockState,
+  options: { provider?: string } = {},
+): Promise<{ code: number; outputs: string; summary: string; log: string }> {
   const mock = await startMockServer(state);
   try {
     const dir = mkdtempSync(join(tmpdir(), "jev-gate-e2e-"));
@@ -125,6 +131,8 @@ async function runAction(state: MockState): Promise<{ code: number; outputs: str
           GITHUB_REPOSITORY: "o/r",
           GITHUB_API_URL: mock.url,
           TYPESAFE_BASE_URL: mock.url,
+          OPENROUTER_BASE_URL: mock.url,
+          ...(options.provider ? { INPUT_PROVIDER: options.provider } : {}),
           INPUT_API_KEY: "test-key",
           INPUT_GITHUB_TOKEN: "test-token",
           GITHUB_OUTPUT: outputPath,
@@ -150,7 +158,7 @@ async function runAction(state: MockState): Promise<{ code: number; outputs: str
 }
 
 test("the bundled action posts a sticky comment and passes when gates clear", async () => {
-  const state: MockState = { dangerProbability: 0.05, comments: [] };
+  const state: MockState = { dangerProbability: 0.05, comments: [], paths: [] };
   const result = await runAction(state);
   assert.equal(result.code, 0, result.log);
   assert.equal(state.comments.length, 1, result.log);
@@ -159,14 +167,24 @@ test("the bundled action posts a sticky comment and passes when gates clear", as
   assert.ok(state.comments[0]?.includes("All gated rules passed."));
   assert.ok(result.outputs.includes("passed=true"), result.log);
   assert.ok(result.summary.includes("Jev gate"));
+  assert.deepEqual(state.paths, ["/v1/systemone"]);
 });
 
 test("the bundled action fails the check when a gated rule trips", async () => {
-  const state: MockState = { dangerProbability: 0.9, comments: [] };
+  const state: MockState = { dangerProbability: 0.9, comments: [], paths: [] };
   const result = await runAction(state);
   assert.equal(result.code, 1, result.log);
   assert.equal(state.comments.length, 1, result.log);
   assert.ok(state.comments[0]?.includes("danger-sensitive-area"));
   assert.ok(result.outputs.includes("passed=false"), result.log);
   assert.ok(result.outputs.includes("failed-gates=danger-sensitive-area"), result.log);
+});
+
+test("the bundled action reaches the OpenRouter decisions endpoint when configured", async () => {
+  const state: MockState = { dangerProbability: 0.05, comments: [], paths: [] };
+  const result = await runAction(state, { provider: "openrouter" });
+  assert.equal(result.code, 0, result.log);
+  assert.equal(state.comments.length, 1, result.log);
+  assert.deepEqual(state.paths, ["/api/alpha/decisions"]);
+  assert.ok(result.outputs.includes("passed=true"), result.log);
 });

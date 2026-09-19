@@ -13,7 +13,9 @@ fails only on the rules you choose to gate.
 
 ## Quick start
 
-1. Add a repository secret `TYPESAFE_API_KEY` with a key from [console.typesafe.ai](https://console.typesafe.ai).
+1. Add a repository secret with your provider's API key: `TYPESAFE_API_KEY` for TypeSafe (a
+   key from [console.typesafe.ai](https://console.typesafe.ai)) or `OPENROUTER_API_KEY` for
+   [OpenRouter](https://openrouter.ai/typesafe/jev-1.13).
 2. Copy [examples/caller.yml](examples/caller.yml) to `.github/workflows/jev-gate.yml`.
 3. Optionally add a `.jev-gate.yml` to tune rules and thresholds (see below).
 
@@ -21,6 +23,25 @@ Until a `v1` tag exists, pin the action to a full commit SHA instead of `@v1`.
 
 The first push to a pull request creates the sticky comment; later pushes update it in place
 and show the delta against the previous run.
+
+### Using OpenRouter
+
+TypeSafe serves Jev directly, and OpenRouter serves the same model through its decisions
+endpoint. Set the provider in the config file:
+
+```yaml
+provider: openrouter
+model: typesafe/jev-1.13   # omit the model to follow ~typesafe/jev-latest
+```
+
+Then pass the OpenRouter key as the action input, or set `OPENROUTER_API_KEY` in the job
+environment and leave the input empty:
+
+```yaml
+      - uses: timkraus/jev-gate@v1
+        with:
+          api-key: ${{ secrets.OPENROUTER_API_KEY }}
+```
 
 ## What it checks
 
@@ -100,6 +121,8 @@ the defaults; a present but invalid file fails the check, because a config chang
 silently stops working is worse than a red check.
 
 ```yaml
+provider: typesafe   # or openrouter
+
 model: jev-latest
 maxStateTokens: 24000
 
@@ -122,13 +145,16 @@ Every setting:
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `model` | `jev-latest` | Jev model name. |
+| `provider` | `typesafe` | `typesafe` or `openrouter`. |
+| `model` | `jev-latest` (typesafe), `~typesafe/jev-latest` (openrouter) | Jev model name; OpenRouter uses its own slugs such as `typesafe/jev-1.13`. |
 | `maxStateTokens` | `24000` | Budget for the serialized state; between 2000 and 30000. The API caps state plus the longest question near 32k tokens. |
 | `ignore` | lockfiles, lockfile variants, `*.min.js`, `*.min.css`, `*.map`, `node_modules`, `dist` | Glob patterns for files excluded from the state. |
 | `comment` | `true` | Post or update the sticky comment. |
 | `rules.<name>.enabled` | `true` | Set `false` to drop the rule and its tokens. |
 | `rules.<name>.gate` | rule default | Set `true` to make an advisory rule fail the check. |
 | `rules.<name>.threshold` | rule default | Concern probability at which the rule fails (gated) or warns (advisory), 0..1. |
+| `openrouter.referer` | none | Optional `HTTP-Referer` header, used only by OpenRouter. |
+| `openrouter.title` | none | Optional `X-Title` header, used only by OpenRouter. |
 
 Unknown keys, unknown rule names, and out-of-range values are config errors.
 
@@ -152,7 +178,8 @@ node dist/bundle/cli.cjs calibrate --dir samples/
 ```
 
 `calibrate` prints one concern probability per rule per sample so you can pick thresholds
-that separate the diffs you would have blocked from the ones you would not. Two practical
+that separate the diffs you would have blocked from the ones you would not. For OpenRouter,
+set `OPENROUTER_API_KEY` and pass `--provider openrouter` to either command. Two practical
 rules: keep gated thresholds outside the 0.2-0.8 band unless you have enough samples to
 justify them, and re-measure after any rule wording change, because the wording moves the
 boundary.
@@ -167,10 +194,11 @@ Jev takes text only, so the action does not review binary files, images, or lock
 
 ## How it runs
 
-The action talks to the GitHub REST API and the TypeSafe API directly. It does not check
-out the repository, does not execute pull request code, and reads rules from the PR's base
-commit. The only write it performs is the sticky comment. The Jev key lives in your
-repository secrets and goes only to `api.typesafe.ai`.
+The action talks to the GitHub REST API and the selected provider's decisions API directly
+(`api.typesafe.ai` or `openrouter.ai`). It does not check out the repository, does not
+execute pull request code, and reads rules from the PR's base commit. The only write it
+performs is the sticky comment. The API key lives in your repository secrets and goes only
+to the provider you selected.
 
 ## Development
 

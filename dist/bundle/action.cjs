@@ -8106,6 +8106,10 @@ function evaluate(rules, answers) {
 // src/config.ts
 var ConfigError = class extends Error {
 };
+var DEFAULT_MODELS = {
+  typesafe: "jev-latest",
+  openrouter: "~typesafe/jev-latest"
+};
 var DEFAULT_IGNORE = [
   "**/node_modules/**",
   "**/package-lock.json",
@@ -8122,7 +8126,7 @@ var DEFAULT_IGNORE = [
   "**/*.map",
   "**/dist/**"
 ];
-var DEFAULT_MODEL = "jev-latest";
+var DEFAULT_MODEL = DEFAULT_MODELS.typesafe;
 var DEFAULT_MAX_STATE_TOKENS = 24e3;
 var MIN_STATE_TOKENS = 2e3;
 var MAX_STATE_TOKENS = 3e4;
@@ -8147,13 +8151,34 @@ function readRuleOverride(name, raw) {
   }
   return override;
 }
+function readOpenRouterSettings(raw) {
+  if (!isRecord2(raw)) throw new ConfigError("openrouter must be a mapping");
+  const settings = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (key !== "referer" && key !== "title") {
+      throw new ConfigError(`openrouter.${key} is not a known setting`);
+    }
+    if (typeof value !== "string" || value.trim() === "") {
+      throw new ConfigError(`openrouter.${key} must be a non-empty string`);
+    }
+    settings[key] = value.trim();
+  }
+  return settings;
+}
 function validateConfigDocument(raw) {
   if (raw === null || raw === void 0) return {};
   if (!isRecord2(raw)) throw new ConfigError("the config file must be a YAML mapping");
   const doc = {};
   const knownRules = new Set(RULE_DEFINITIONS.map((rule) => rule.name));
   for (const [key, value] of Object.entries(raw)) {
-    if (key === "model") {
+    if (key === "provider") {
+      if (value !== "typesafe" && value !== "openrouter") {
+        throw new ConfigError("provider must be typesafe or openrouter");
+      }
+      doc.provider = value;
+    } else if (key === "openrouter") {
+      doc.openrouter = readOpenRouterSettings(value);
+    } else if (key === "model") {
       if (typeof value !== "string" || value.trim() === "") throw new ConfigError("model must be a non-empty string");
       doc.model = value.trim();
     } else if (key === "maxStateTokens") {
@@ -8197,11 +8222,13 @@ function resolveConfig(doc) {
     };
   });
   return {
-    model: doc.model ?? DEFAULT_MODEL,
+    provider: doc.provider ?? "typesafe",
+    model: doc.model ?? DEFAULT_MODELS[doc.provider ?? "typesafe"],
     maxStateTokens: doc.maxStateTokens ?? DEFAULT_MAX_STATE_TOKENS,
     ignore: doc.ignore ?? DEFAULT_IGNORE,
     comment: doc.comment ?? true,
-    rules
+    rules,
+    openrouter: doc.openrouter ?? {}
   };
 }
 
@@ -8427,6 +8454,127 @@ var GitHubClient = class {
   }
 };
 
+// src/jev.ts
+var USD_PER_INPUT_TOKEN = 0.042 / 1e6;
+var costUSD = (inputTokens) => inputTokens * USD_PER_INPUT_TOKEN;
+var PROVIDER_ENV_KEYS = {
+  typesafe: "TYPESAFE_API_KEY",
+  openrouter: "OPENROUTER_API_KEY"
+};
+var JevProviderError = class extends Error {
+  constructor(message, status2) {
+    super(message);
+    this.status = status2;
+  }
+};
+async function runJevReview(request) {
+  if (request.provider === "typesafe") return runTypeSafe(request);
+  if (request.provider === "openrouter") return runOpenRouter(request);
+  throw new JevProviderError(`unknown provider: ${String(request.provider)}`, null);
+}
+async function runTypeSafe(request) {
+  const client = new TypeSafeClient({
+    apiKey: request.apiKey,
+    baseURL: request.baseURL,
+    defaultModel: request.model,
+    fetch: request.fetchImpl,
+    timeout: request.timeoutMs ?? 2e4,
+    retry: request.retry,
+    logLevel: "off"
+  });
+  const started = performance.now();
+  const result = await client.systemOne(
+    { state: request.state, questions: request.questions },
+    { signal: request.signal }
+  );
+  return {
+    model: result.model,
+    answers: result.answers,
+    inputTokens: result.usage.input_tokens,
+    outputTokens: result.usage.output_tokens,
+    latencyMs: performance.now() - started
+  };
+}
+var OPENROUTER_DEFAULT_BASE = "https://openrouter.ai";
+var RETRYABLE_STATUSES = /* @__PURE__ */ new Set([408, 429, 500, 502, 503, 504, 529]);
+var sleep2 = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+var numberOr = (value, fallback) => typeof value === "number" && Number.isFinite(value) ? value : fallback;
+function withTimeout(signal, timeoutMs) {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  if (!signal) return timeout;
+  return typeof AbortSignal.any === "function" ? AbortSignal.any([signal, timeout]) : timeout;
+}
+async function errorDetail(response) {
+  try {
+    const payload = await response.json();
+    const message = payload.error?.message ?? payload.message;
+    return message ? `: ${message}` : "";
+  } catch {
+    return "";
+  }
+}
+async function runOpenRouter(request) {
+  const base = (request.baseURL ?? process.env.OPENROUTER_BASE_URL ?? OPENROUTER_DEFAULT_BASE).replace(
+    /\/+$/,
+    ""
+  );
+  const url = `${base}/api/alpha/decisions`;
+  const maxRetries = request.retry?.maxRetries ?? 2;
+  const backoffMs = request.retry?.backoffInitialMs ?? 500;
+  const timeoutMs = request.timeoutMs ?? 2e4;
+  const fetchImpl = request.fetchImpl ?? fetch;
+  const headers = {
+    Authorization: `Bearer ${request.apiKey}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    "User-Agent": "jev-gate"
+  };
+  if (request.app?.referer) headers["HTTP-Referer"] = request.app.referer;
+  if (request.app?.title) {
+    headers["X-Title"] = request.app.title;
+    headers["X-OpenRouter-Title"] = request.app.title;
+  }
+  const body = JSON.stringify({ model: request.model, state: request.state, questions: request.questions });
+  const started = performance.now();
+  let lastError = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    if (attempt > 0) await sleep2(backoffMs * 2 ** (attempt - 1));
+    let response;
+    try {
+      response = await fetchImpl(url, {
+        method: "POST",
+        headers,
+        body,
+        signal: withTimeout(request.signal, timeoutMs)
+      });
+    } catch (error) {
+      lastError = new JevProviderError(
+        `OpenRouter request failed: ${error instanceof Error ? error.message : String(error)}`,
+        null
+      );
+      if (attempt === maxRetries) break;
+      continue;
+    }
+    if (!response.ok) {
+      lastError = new JevProviderError(`OpenRouter answered ${response.status}${await errorDetail(response)}`, response.status);
+      if (!RETRYABLE_STATUSES.has(response.status) || attempt === maxRetries) throw lastError;
+      continue;
+    }
+    const payload = await response.json();
+    if (typeof payload.answers !== "object" || payload.answers === null || Array.isArray(payload.answers)) {
+      throw new JevProviderError("OpenRouter response carried no answers object", null);
+    }
+    return {
+      model: typeof payload.model === "string" ? payload.model : request.model,
+      answers: payload.answers,
+      inputTokens: numberOr(payload.usage?.input_tokens ?? payload.usage?.prompt_tokens, 0),
+      outputTokens: numberOr(payload.usage?.output_tokens ?? payload.usage?.completion_tokens, 0),
+      latencyMs: performance.now() - started
+    };
+  }
+  throw lastError ?? new JevProviderError("OpenRouter request failed", null);
+}
+
 // src/state.ts
 function estimateTokens(text) {
   return Math.ceil(text.length / 4);
@@ -8522,33 +8670,6 @@ function buildState(pr, files, config) {
   return { state, truncatedPaths };
 }
 
-// src/jev.ts
-var USD_PER_INPUT_TOKEN = 0.042 / 1e6;
-var costUSD = (inputTokens) => inputTokens * USD_PER_INPUT_TOKEN;
-async function runJevReview(request) {
-  const client = new TypeSafeClient({
-    apiKey: request.apiKey,
-    baseURL: request.baseURL,
-    defaultModel: request.model,
-    fetch: request.fetchImpl,
-    timeout: request.timeoutMs ?? 2e4,
-    retry: request.retry,
-    logLevel: "off"
-  });
-  const started = performance.now();
-  const result = await client.systemOne(
-    { state: request.state, questions: request.questions },
-    { signal: request.signal }
-  );
-  return {
-    model: result.model,
-    answers: result.answers,
-    inputTokens: result.usage.input_tokens,
-    outputTokens: result.usage.output_tokens,
-    latencyMs: performance.now() - started
-  };
-}
-
 // src/review.ts
 async function runReview(input) {
   const enabled = input.config.rules.filter((rule) => rule.enabled);
@@ -8558,6 +8679,7 @@ async function runReview(input) {
   const { state, truncatedPaths } = buildState(input.pr, input.files, input.config);
   const questions = buildQuestions(enabled);
   const response = await runJevReview({
+    provider: input.config.provider,
     apiKey: input.apiKey,
     model: input.config.model,
     state,
@@ -8566,7 +8688,8 @@ async function runReview(input) {
     fetchImpl: input.fetchImpl,
     timeoutMs: input.timeoutMs,
     signal: input.signal,
-    retry: input.retry
+    retry: input.retry,
+    app: input.config.openrouter
   });
   const decisions = evaluate(enabled, response.answers);
   const failedGates = decisions.filter((decision) => decision.failed).map((decision) => decision.name);
@@ -8644,9 +8767,18 @@ function loadConfigText(text) {
 function applyInputOverrides(config) {
   const model = getInput("model");
   const maxStateTokens = getInput("max-state-tokens");
+  const providerInput = getInput("provider");
+  let provider = config.provider;
+  if (providerInput) {
+    if (providerInput !== "typesafe" && providerInput !== "openrouter") {
+      throw new ConfigError(`provider must be typesafe or openrouter, not ${providerInput}`);
+    }
+    provider = providerInput;
+  }
   return {
     ...config,
-    model: model || config.model,
+    provider,
+    model: model || (provider !== config.provider ? DEFAULT_MODELS[provider] : config.model),
     maxStateTokens: maxStateTokens ? Number(maxStateTokens) : config.maxStateTokens
   };
 }
@@ -8668,16 +8800,6 @@ async function runAction() {
   const repository = event.repository?.full_name ?? process.env.GITHUB_REPOSITORY ?? "";
   const number = event.pull_request?.number;
   if (!repository || !number) return skip("the event payload carries no pull request");
-  const apiKey = getInput("api-key");
-  if (!apiKey) {
-    const onMissing = getInput("on-missing-key") || "skip";
-    if (onMissing === "fail") {
-      fail("no api-key input was provided and on-missing-key is fail");
-      setOutput("passed", "failed");
-      return 1;
-    }
-    return skip("no api-key input was provided (expected for fork pull requests under the pull_request event)");
-  }
   const token = getInput("github-token") || process.env.GITHUB_TOKEN || "";
   if (!token) {
     fail("no github-token input or GITHUB_TOKEN environment variable is available");
@@ -8704,6 +8826,18 @@ async function runAction() {
       return 1;
     }
     throw error;
+  }
+  const keyEnv = PROVIDER_ENV_KEYS[config.provider];
+  const apiKey = getInput("api-key") || process.env[keyEnv] || "";
+  if (!apiKey) {
+    const onMissing = getInput("on-missing-key") || "skip";
+    const reason = `no api-key input and no ${keyEnv} in the environment (expected for fork pull requests under the pull_request event)`;
+    if (onMissing === "fail") {
+      fail(reason);
+      setOutput("passed", "failed");
+      return 1;
+    }
+    return skip(reason);
   }
   const timeoutMs = Number(getInput("timeout-ms") || "30000");
   const started = Date.now();

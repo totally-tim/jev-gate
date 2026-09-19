@@ -1,8 +1,16 @@
 import { RULE_DEFINITIONS } from "./rules.js";
-import type { ConfigDocument, ResolvedConfig, ResolvedRule, RuleConfigOverride } from "./types.js";
+import type { ConfigDocument, Provider, ResolvedConfig, ResolvedRule, RuleConfigOverride } from "./types.js";
 
 /** Thrown for a config file that exists but cannot be used. The action fails closed on this. */
 export class ConfigError extends Error {}
+
+/** Default model per provider; OpenRouter aliases the latest Jev release with a tilde. */
+export const DEFAULT_MODELS: Record<Provider, string> = {
+  typesafe: "jev-latest",
+  openrouter: "~typesafe/jev-latest",
+};
+
+export const PROVIDERS: readonly Provider[] = ["typesafe", "openrouter"];
 
 const DEFAULT_IGNORE: readonly string[] = [
   "**/node_modules/**",
@@ -21,7 +29,7 @@ const DEFAULT_IGNORE: readonly string[] = [
   "**/dist/**",
 ];
 
-export const DEFAULT_MODEL = "jev-latest";
+export const DEFAULT_MODEL = DEFAULT_MODELS.typesafe;
 export const DEFAULT_MAX_STATE_TOKENS = 24_000;
 export const MIN_STATE_TOKENS = 2_000;
 export const MAX_STATE_TOKENS = 30_000;
@@ -50,6 +58,22 @@ function readRuleOverride(name: string, raw: unknown): RuleConfigOverride {
   return override;
 }
 
+/** Validate the optional OpenRouter settings block. */
+function readOpenRouterSettings(raw: unknown): { referer?: string; title?: string } {
+  if (!isRecord(raw)) throw new ConfigError("openrouter must be a mapping");
+  const settings: { referer?: string; title?: string } = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (key !== "referer" && key !== "title") {
+      throw new ConfigError(`openrouter.${key} is not a known setting`);
+    }
+    if (typeof value !== "string" || value.trim() === "") {
+      throw new ConfigError(`openrouter.${key} must be a non-empty string`);
+    }
+    settings[key] = value.trim();
+  }
+  return settings;
+}
+
 /** Validate the parsed YAML document. Unknown top-level or rule keys are errors. */
 export function validateConfigDocument(raw: unknown): ConfigDocument {
   if (raw === null || raw === undefined) return {};
@@ -57,7 +81,14 @@ export function validateConfigDocument(raw: unknown): ConfigDocument {
   const doc: ConfigDocument = {};
   const knownRules = new Set(RULE_DEFINITIONS.map((rule) => rule.name));
   for (const [key, value] of Object.entries(raw)) {
-    if (key === "model") {
+    if (key === "provider") {
+      if (value !== "typesafe" && value !== "openrouter") {
+        throw new ConfigError("provider must be typesafe or openrouter");
+      }
+      doc.provider = value;
+    } else if (key === "openrouter") {
+      doc.openrouter = readOpenRouterSettings(value);
+    } else if (key === "model") {
       if (typeof value !== "string" || value.trim() === "") throw new ConfigError("model must be a non-empty string");
       doc.model = value.trim();
     } else if (key === "maxStateTokens") {
@@ -108,10 +139,12 @@ export function resolveConfig(doc: ConfigDocument): ResolvedConfig {
     };
   });
   return {
-    model: doc.model ?? DEFAULT_MODEL,
+    provider: doc.provider ?? "typesafe",
+    model: doc.model ?? DEFAULT_MODELS[doc.provider ?? "typesafe"],
     maxStateTokens: doc.maxStateTokens ?? DEFAULT_MAX_STATE_TOKENS,
     ignore: doc.ignore ?? DEFAULT_IGNORE,
     comment: doc.comment ?? true,
     rules,
+    openrouter: doc.openrouter ?? {},
   };
 }

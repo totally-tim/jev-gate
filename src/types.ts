@@ -27,6 +27,9 @@ export interface DiffFile {
 
 export type RuleKind = "noul" | "score";
 
+/** A decisions provider that serves Jev models. */
+export type Provider = "typesafe" | "openrouter";
+
 /** A rule as authored in this repository: the question and how it is read. */
 export interface RuleDefinition {
   name: string;
@@ -52,11 +55,13 @@ export interface RuleConfigOverride {
 
 /** The parsed shape of `.jev-gate.yml`. */
 export interface ConfigDocument {
+  provider?: Provider;
   model?: string;
   maxStateTokens?: number;
   ignore?: string[];
   comment?: boolean;
   rules?: Record<string, RuleConfigOverride>;
+  openrouter?: { referer?: string; title?: string };
 }
 
 /** A rule with its config overrides applied. */
@@ -65,11 +70,14 @@ export interface ResolvedRule extends RuleDefinition {
 }
 
 export interface ResolvedConfig {
+  provider: Provider;
   model: string;
   maxStateTokens: number;
   ignore: readonly string[];
   comment: boolean;
   rules: readonly ResolvedRule[];
+  /** Ranking headers OpenRouter accepts; other providers ignore them. */
+  openrouter: { referer?: string; title?: string };
 }
 
 /** One rule's answer, reduced to the numbers the comment shows. */

@@ -1,8 +1,9 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { ConfigError, resolveConfig, validateConfigDocument } from "./config.js";
+import { ConfigError, DEFAULT_MODELS, resolveConfig, validateConfigDocument } from "./config.js";
 import { isMainModule } from "./entry.js";
+import { PROVIDER_ENV_KEYS } from "./jev.js";
 import { renderPlainTable } from "./render.js";
 import { runReview } from "./review.js";
 import type { DiffFile, PullRequestContext, ResolvedConfig } from "./types.js";
@@ -11,12 +12,13 @@ const USAGE = `jev-gate: Jev-powered PR review rules
 
 Usage:
   jev-gate review --diff <file> [--title <text>] [--description <file>]
-                  [--config <file>] [--model <name>] [--json] [--no-gate]
-  jev-gate calibrate --dir <dir> [--config <file>] [--json]
+                  [--config <file>] [--provider <name>] [--model <name>] [--json] [--no-gate]
+  jev-gate calibrate --dir <dir> [--config <file>] [--provider <name>] [--json]
 
 review reads a unified diff (for example \`git diff main...HEAD\`) and prints one concern
 probability per rule. It exits 1 when a gated rule reaches its threshold unless --no-gate
-is passed. The API key comes from TYPESAFE_API_KEY or --api-key.
+is passed. The provider is typesafe (the default) or openrouter. The API key comes from
+--api-key, or from TYPESAFE_API_KEY for typesafe and OPENROUTER_API_KEY for openrouter.
 
 calibrate runs the same rules over a directory of *.diff samples so thresholds can be set
 from data instead of guesses.
@@ -98,9 +100,24 @@ function syntheticPullRequest(title: string, description: string, files: readonl
   };
 }
 
-function requireApiKey(args: ParsedArgs): string {
-  const key = flagString(args, "api-key") ?? process.env.TYPESAFE_API_KEY ?? "";
-  if (!key) throw new ConfigError("no API key: set TYPESAFE_API_KEY or pass --api-key");
+/** Apply --provider, keeping an explicitly configured model unless --model also arrives. */
+function applyProviderFlag(args: ParsedArgs, config: ResolvedConfig): ResolvedConfig {
+  const provider = flagString(args, "provider");
+  if (!provider) return config;
+  if (provider !== "typesafe" && provider !== "openrouter") {
+    throw new ConfigError(`provider must be typesafe or openrouter, not ${provider}`);
+  }
+  return {
+    ...config,
+    provider,
+    model: flagString(args, "model") || (provider !== config.provider ? DEFAULT_MODELS[provider] : config.model),
+  };
+}
+
+function requireApiKey(args: ParsedArgs, provider: ResolvedConfig["provider"]): string {
+  const envKey = PROVIDER_ENV_KEYS[provider];
+  const key = flagString(args, "api-key") ?? process.env[envKey] ?? "";
+  if (!key) throw new ConfigError(`no API key: set ${envKey} or pass --api-key`);
   return key;
 }
 
@@ -110,7 +127,7 @@ async function commandReview(args: ParsedArgs): Promise<number> {
     process.stderr.write("review needs --diff <file>\n");
     return 2;
   }
-  const config = loadConfigFile(flagString(args, "config"));
+  const config = applyProviderFlag(args, loadConfigFile(flagString(args, "config")));
   const model = flagString(args, "model");
   if (model) config.model = model;
   const diffText = readFileSync(diffPath, "utf8");
@@ -122,7 +139,7 @@ async function commandReview(args: ParsedArgs): Promise<number> {
   const descriptionPath = flagString(args, "description");
   const description = descriptionPath ? readFileSync(descriptionPath, "utf8") : "";
   const pr = syntheticPullRequest(flagString(args, "title") ?? "local diff", description, files);
-  const outcome = await runReview({ pr, files, config, apiKey: requireApiKey(args) });
+  const outcome = await runReview({ pr, files, config, apiKey: requireApiKey(args, config.provider) });
   if (args.flags.has("json")) {
     process.stdout.write(`${JSON.stringify(outcome, null, 2)}\n`);
   } else {
@@ -144,8 +161,8 @@ async function commandCalibrate(args: ParsedArgs): Promise<number> {
     process.stderr.write("calibrate needs --dir <dir>\n");
     return 2;
   }
-  const config = loadConfigFile(flagString(args, "config"));
-  const apiKey = requireApiKey(args);
+  const config = applyProviderFlag(args, loadConfigFile(flagString(args, "config")));
+  const apiKey = requireApiKey(args, config.provider);
   const samples = readdirSync(dir)
     .filter((name) => name.endsWith(".diff"))
     .sort();
