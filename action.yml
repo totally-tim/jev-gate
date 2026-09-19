@@ -1,7 +1,7 @@
 name: jev-gate
 description: >-
-  Review a pull request with TypeSafe Jev: calibrated concern probabilities for danger
-  and breaking changes, posted as a sticky comment, costing a fraction of a cent per push.
+  Review a pull request with TypeSafe Jev: calibrated probabilities for danger and breaking
+  changes, posted as a sticky comment, for less than a cent per push.
 author: Tim Kraus
 branding:
   icon: shield

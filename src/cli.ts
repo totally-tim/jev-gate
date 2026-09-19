@@ -7,7 +7,7 @@ import { renderPlainTable } from "./render.js";
 import { runReview } from "./review.js";
 import type { DiffFile, PullRequestContext, ResolvedConfig } from "./types.js";
 
-const USAGE = `jev-gate — Jev-powered PR review rules
+const USAGE = `jev-gate: Jev-powered PR review rules
 
 Usage:
   jev-gate review --diff <file> [--title <text>] [--description <file>]

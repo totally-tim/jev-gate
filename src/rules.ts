@@ -3,12 +3,13 @@ import { ConfigError } from "./config.js";
 import type { ResolvedRule, RuleDecision, RuleDefinition } from "./types.js";
 
 /**
- * The rule set is the product. Every rule is a single question scored as a "concern":
- * higher probability means the concern is more likely present. Gated rules fail the
- * check at or above their threshold; advisory rules report the same number without failing.
+ * A rule is one question about the diff plus a threshold. Every question is phrased as a
+ * concern: a higher probability means the concern is more likely present. Gated rules fail
+ * the check at or above their threshold; advisory rules report the same number and never fail.
  *
- * Thresholds here are starting points from the calibration bench's findings, not truths.
- * Run `jev-gate calibrate` on your own diffs before trusting a threshold inside 0.2-0.8.
+ * The wording decides what the model notices, so review a rule edit like a code change.
+ * Thresholds are starting points, not truths: calibrate them on your own diffs before
+ * trusting a value inside 0.2-0.8.
  */
 export const RULE_DEFINITIONS: readonly RuleDefinition[] = [
   {

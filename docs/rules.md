@@ -5,16 +5,17 @@ A rule is one question about the diff with a threshold. Rules live in
 
 ## The concern convention
 
-Every rule is phrased so that a higher probability means a worse diff. A Noul rule returns
-`P(yes)`; a Score rule returns an expected level which is normalized by dividing by the
-highest level index, so a level-2 answer on a three-level rubric becomes 1.0. There is no
-"goodness" polarity to remember: high is always the concern.
+Every rule is phrased so that a higher probability means a worse diff. Noul (Jev's yes/no
+question type) returns the probability of yes. Score (Jev's ordered rubric type) returns an
+expected level, which the code normalizes by dividing by the highest level index, so a level-2
+answer on a three-level rubric becomes 1.0. High is always the concern; there is no "goodness"
+polarity to remember.
 
 This convention lets the gate and the comment treat every rule identically:
 
-- `probability >= threshold` and `gate: true` → the check fails.
-- `probability >= threshold` and `gate: false` → the comment shows `warn`.
-- otherwise the rule shows `ok`.
+- A probability at or above the threshold with `gate: true` fails the check.
+- The same with `gate: false` shows `warn` in the comment.
+- Below the threshold the rule shows `ok`.
 
 ## Writing a rule
 
@@ -22,14 +23,15 @@ This convention lets the gate and the comment treat every rule identically:
    both directions. `danger-sensitive-area` does this: "not merely when the file sits near
    such code" removes the most common false positive, and "tests and documentation alone
    are not sensitive" removes the second.
-2. Prefer one narrow judgment over a broad one. The calibration bench found that a
-   boundary-specific `not_for` clause moved errors from 24 to 6 on a 300-row task, but also
-   moved 4 errors the other way; narrow wording sharpens, it does not remove.
+2. Prefer one narrow judgment over a broad one. The Jev playground's calibration bench (a
+   harness that measures Jev's answers against labeled data) found that a boundary-specific
+   `not_for` clause moved errors from 24 to 6 on a 300-row task, but also moved 4 errors the
+   other way; narrow wording sharpens, it does not remove.
 3. Decide the kind. Noul when the answer is genuinely binary. Score when you want the
    model to express a degree, and write the rubric so every level is observable in the
    diff, not in the reviewer's taste.
 4. Set a default threshold from data, not from intuition. See below.
-5. Add the rule to `src/rules.ts`, run `npm test`, and use `jev-gate calibrate` before
+5. Add the rule to `src/rules.ts`, run `npm test`, and calibrate it on sample diffs before
    making it a gate.
 
 ## Thresholds
@@ -52,11 +54,12 @@ value to make it look calibrated.
 
 ## What is verified and what is not
 
-The calibration bench in the Jev playground measured Noul calibration on three tasks
-(97.0%, 94.0%, and 84.3% accuracy, with ECE between 3.3% and 11.8% at n = 300) and found
-that fewer than 15% of answers land between 0.2 and 0.8. Those numbers are for generic
-judgments on public datasets, not for these review rules, and they are the vendor's model
-trained for calibration, not a guarantee per question.
+The calibration bench in the Jev playground measured how well Jev's yes/no answers matched
+outcomes on three public tasks (97.0%, 94.0%, and 84.3% accuracy, with expected calibration
+error between 3.3% and 11.8% at n = 300) and found that fewer than 15% of answers land between
+0.2 and 0.8. Those numbers come from generic judgments on public datasets, not from these
+review rules, and they measure the model the vendor trained for calibration rather than a
+guarantee per question.
 
 What that means here: treat a gated rule as a fast, consistent first pass that a human can
 verify in thirty seconds, not as an authorization boundary. The gate fails the check, and a

@@ -45,7 +45,7 @@ function detail(decision: RuleDecision): string | null {
       ? ` (expected level ${decision.level.toFixed(2)} of ${decision.levels - 1})`
       : "";
   const kind = decision.failed ? "failed" : "warn";
-  return `- \`${decision.name}\` ${kind} at ${percent(decision.probability)}${level} — ${decision.title}.`;
+  return `- \`${decision.name}\` ${kind} at ${percent(decision.probability)}${level}: ${decision.title}.`;
 }
 
 function renderBody(outcome: ReviewOutcome, previous: ReviewOutcome | null): string {
@@ -53,7 +53,7 @@ function renderBody(outcome: ReviewOutcome, previous: ReviewOutcome | null): str
     (previous?.decisions ?? []).map((decision) => [decision.name, decision.probability]),
   );
   const lines: string[] = [];
-  lines.push(`### Jev gate — \`${outcome.headSha.slice(0, 12)}\``);
+  lines.push(`### Jev gate: \`${outcome.headSha.slice(0, 12)}\``);
   lines.push("");
   if (outcome.failedGates.length > 0) {
     lines.push(
@@ -89,7 +89,7 @@ function renderBody(outcome: ReviewOutcome, previous: ReviewOutcome | null): str
   lines.push(
     `<sub>model ${outcome.model} · ${Math.round(outcome.latencyMs)} ms · ` +
       `${outcome.inputTokens.toLocaleString("en-US")} input tokens (${cost}) · ` +
-      `base ${outcome.baseSha.slice(0, 12)} → head ${outcome.headSha.slice(0, 12)} · ` +
+      `base ${outcome.baseSha.slice(0, 12)}, head ${outcome.headSha.slice(0, 12)} · ` +
       `advisory rules report only and never fail this check.</sub>`,
   );
   return lines.join("\n");

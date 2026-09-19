@@ -5,7 +5,7 @@ import { ConfigError, resolveConfig, validateConfigDocument } from "./config.js"
 import { isMainModule } from "./entry.js";
 import { renderPlainTable } from "./render.js";
 import { runReview } from "./review.js";
-const USAGE = `jev-gate — Jev-powered PR review rules
+const USAGE = `jev-gate: Jev-powered PR review rules
 
 Usage:
   jev-gate review --diff <file> [--title <text>] [--description <file>]

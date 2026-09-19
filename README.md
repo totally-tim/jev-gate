@@ -1,15 +1,15 @@
 # jev-gate
 
-A GitHub Action that reviews a pull request with [TypeSafe Jev](https://typesafe.ai), the
-System One model that returns calibrated probabilities instead of text. It asks the same
-seven questions about every diff — is this touching security-sensitive logic, did it delete
-tests, does it contain secrets, does it break existing callers, are the tests weak, are the
-changes mixed together, do the comments still describe the code — and posts one sticky
-comment with the numbers.
+A GitHub Action that reviews a pull request with [TypeSafe Jev](https://typesafe.ai). Jev
+answers typed questions with calibrated probabilities instead of writing text; TypeSafe calls
+this class of model System One. jev-gate asks the same seven questions about every diff: does
+it touch security-sensitive logic, did it delete tests, does it contain secrets, does it break
+existing callers, are the tests weak, are the changes mixed together, do the comments still
+describe the code. It posts one sticky comment with the numbers.
 
-Jev costs $0.042 per million input tokens with output tokens free, so a review of a typical
-diff is a few hundredths of a cent. That is cheap enough to run on every push, which is the
-point: the gate is always there, and it fails only on the rules you choose to gate.
+Jev costs $0.042 per million input tokens and charges nothing for output tokens, so reviewing
+a small diff costs about $0.00006. That is cheap enough to run on every push, and the gate
+fails only on the rules you choose to gate.
 
 ## Quick start
 
@@ -24,13 +24,14 @@ and show the delta against the previous run.
 
 ## What it checks
 
-Every rule is phrased as a concern: a higher number means the concern is more likely
-present. Gated rules fail the check at or above their threshold. Advisory rules report the
-same number and never fail the check.
+Every rule is phrased as a concern: a higher number means the concern is more likely present.
+A Noul rule asks a yes/no question and returns the probability of yes. A Score rule grades
+against an ordered rubric and returns a position between the levels. Gated rules fail the
+check at or above their threshold; advisory rules report the same number and never fail it.
 
 | Rule | Kind | Default | Threshold | The question it asks |
 | --- | --- | --- | ---: | --- |
-| `danger-sensitive-area` | Noul | gate | 0.50 | Does the diff change security-sensitive logic: auth, authz, sessions or tokens, payments, personal data, or migrations? |
+| `danger-sensitive-area` | Noul | gate | 0.50 | Does the diff change security-sensitive logic: authentication, authorization, sessions or tokens, payments, personal data, or migrations? |
 | `danger-deleted-tests` | Noul | gate | 0.60 | Does the diff delete, disable, or weaken existing tests instead of updating them with the behavior they cover? |
 | `danger-secret-material` | Noul | gate | 0.60 | Does the diff contain credentials, keys, tokens, or connection strings with embedded passwords? |
 | `breaking-change` | Noul | gate | 0.60 | Does the diff change behavior callers or deployments depend on without a migration or compatibility path? |
@@ -38,12 +39,12 @@ same number and never fail the check.
 | `change-hygiene` | Score | advisory | 0.60 | How much does the diff bundle unrelated changes or diverge from the PR description? |
 | `comment-drift` | Noul | advisory | 0.60 | Did the diff change behavior while leaving comments or docs it touches describing the old behavior? |
 
-All seven questions go to Jev in a single batched request about the same state, so the
-fixed request overhead is paid once — the calibration bench measured about 300 tokens of
-overhead per request, which batching amortizes.
+All seven questions go to Jev in a single request about the same state, so the fixed request
+overhead is paid once instead of once per question. In our measurements that overhead is
+about 300 input tokens per request.
 
-The rule text lives in [`src/rules.ts`](src/rules.ts). It is the product: a rule is only as
-good as its wording, and thresholds are only as good as your data.
+The rule text lives in [`src/rules.ts`](src/rules.ts). The wording decides what the gate
+notices, so review a rule edit the way you review a code change.
 
 ## The comment
 
@@ -60,8 +61,8 @@ For coding agents the comment also carries a hidden JSON block:
 ```
 
 An agent can read the pull request comments, parse that block, and act on the exact
-probabilities — for example, resubmit after a fix and compare, or explain which rule is
-blocking.
+probabilities, for example to resubmit after a fix and compare the two runs or to explain
+which rule is blocking.
 
 ## Failing CI and branch protection
 
@@ -133,9 +134,10 @@ Unknown keys, unknown rule names, and out-of-range values are config errors.
 
 ## Calibrating thresholds
 
-The defaults are starting points from the calibration bench (Noul extremes were
-well calibrated; few answers landed between 0.2 and 0.8). They are not your thresholds.
-Before trusting a gate, measure it on real diffs. From a checkout of this repository:
+The defaults are starting points from our calibration measurements: yes/no answers were well
+calibrated near 0 and 1, and few answers landed between 0.2 and 0.8. They are not your
+thresholds. Before trusting a gate, measure it on real diffs. From a checkout of this
+repository:
 
 ```sh
 npm ci && npm run build
@@ -159,9 +161,9 @@ boundary.
 
 At $0.042 per million input tokens, a 6,000-token state costs about $0.00025, so roughly
 forty reviews per cent. A state carries the PR title and description, file metadata, and
-per-file patches capped at 8,000 characters each and 24,000 tokens total; when a diff is
-larger, patches are dropped from the largest files first and the comment says so. Jev takes
-text only, and no attempt is made to review binary files, images, or lockfiles.
+per-file patches capped at 8,000 characters each and 24,000 tokens total. When a diff is
+larger, the action drops patches from the largest files first and says so in the comment.
+Jev takes text only, so the action does not review binary files, images, or lockfiles.
 
 ## How it runs
 

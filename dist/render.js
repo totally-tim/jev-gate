@@ -44,12 +44,12 @@ function detail(decision) {
         ? ` (expected level ${decision.level.toFixed(2)} of ${decision.levels - 1})`
         : "";
     const kind = decision.failed ? "failed" : "warn";
-    return `- \`${decision.name}\` ${kind} at ${percent(decision.probability)}${level} — ${decision.title}.`;
+    return `- \`${decision.name}\` ${kind} at ${percent(decision.probability)}${level}: ${decision.title}.`;
 }
 function renderBody(outcome, previous) {
     const previousByName = new Map((previous?.decisions ?? []).map((decision) => [decision.name, decision.probability]));
     const lines = [];
-    lines.push(`### Jev gate — \`${outcome.headSha.slice(0, 12)}\``);
+    lines.push(`### Jev gate: \`${outcome.headSha.slice(0, 12)}\``);
     lines.push("");
     if (outcome.failedGates.length > 0) {
         lines.push(`**${outcome.failedGates.length} gated rule${outcome.failedGates.length === 1 ? "" : "s"} failed:** ` +
@@ -81,7 +81,7 @@ function renderBody(outcome, previous) {
     const cost = outcome.costUSD < 0.00001 ? "$<0.00001" : `$${outcome.costUSD.toFixed(5)}`;
     lines.push(`<sub>model ${outcome.model} · ${Math.round(outcome.latencyMs)} ms · ` +
         `${outcome.inputTokens.toLocaleString("en-US")} input tokens (${cost}) · ` +
-        `base ${outcome.baseSha.slice(0, 12)} → head ${outcome.headSha.slice(0, 12)} · ` +
+        `base ${outcome.baseSha.slice(0, 12)}, head ${outcome.headSha.slice(0, 12)} · ` +
         `advisory rules report only and never fail this check.</sub>`);
     return lines.join("\n");
 }

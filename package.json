@@ -1,7 +1,7 @@
 {
   "name": "jev-gate",
   "version": "0.1.0",
-  "description": "A GitHub Action that reviews pull requests with TypeSafe Jev: fast, calibrated fuzzy rules for danger and breaking changes, with advisory quality scores.",
+  "description": "A GitHub Action that reviews pull requests with TypeSafe Jev: calibrated rules for danger and breaking changes, with advisory quality scores.",
   "license": "MIT",
   "private": true,
   "type": "module",

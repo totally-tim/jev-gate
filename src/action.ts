@@ -7,7 +7,7 @@ import { renderComment, renderSummary } from "./render.js";
 import { runReview } from "./review.js";
 import type { ResolvedConfig } from "./types.js";
 
-/** Read an action input; both the dashed and underscored environment forms are accepted. */
+/** Read an action input; both the dashed and underscore variants of the environment name are accepted. */
 export function getInput(name: string): string {
   const upper = name.toUpperCase();
   const candidates = [`INPUT_${upper}`, `INPUT_${upper.replaceAll("-", "_")}`];

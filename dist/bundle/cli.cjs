@@ -8398,7 +8398,7 @@ async function runReview(input) {
 }
 
 // src/cli.ts
-var USAGE = `jev-gate \u2014 Jev-powered PR review rules
+var USAGE = `jev-gate: Jev-powered PR review rules
 
 Usage:
   jev-gate review --diff <file> [--title <text>] [--description <file>]
