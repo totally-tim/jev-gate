@@ -228,6 +228,9 @@ jev-gate review --base main          # review that change set, exits 1 on a fail
 jev-gate review --diff - < x.diff    # review a diff from stdin
 ```
 
+If npm is configured to block git dependencies (`allow-git=none`), clone the repository and
+run `npm install -g .` from the checkout instead.
+
 `review` without `--diff` builds the local change set itself: everything committed on the
 branch since the merge base with the base ref, plus staged, unstaged, and untracked files,
 as one diff. `--base` defaults to the repository's main branch (`origin/HEAD`, then

@@ -16,6 +16,8 @@ like ones you would have wanted to see.
   ```sh
   npm install -g github:totally-tim/jev-gate
   ```
+  If npm blocks git dependencies (`allow-git=none`), clone the repository and run
+  `npm install -g .` from the checkout instead.
 - A provider key visible to the OpenCode server: `TYPESAFE_API_KEY` (default) or
   `OPENROUTER_API_KEY` with `provider: openrouter`, or an `apiKey` option.
 
