@@ -8282,6 +8282,8 @@ var import_node_util = require("node:util");
 var execGit = (0, import_node_util.promisify)(import_node_child_process.execFile);
 var CANDIDATE_BASES = ["origin/HEAD", "origin/main", "origin/master", "main", "master"];
 var MAX_UNTRACKED_FILES = 500;
+var EXCLUDED_PATHS = [".jev-gate"];
+var exclusions = () => EXCLUDED_PATHS.map((path) => `:(exclude)${path}`);
 var MAX_BUFFER = 64 * 1024 * 1024;
 async function git(args, cwd) {
   try {
@@ -8316,12 +8318,16 @@ async function resolveBaseRef(explicit, cwd) {
   );
 }
 async function untrackedPatches(cwd) {
-  const listed = (await git(["ls-files", "-z", "--others", "--exclude-standard"], cwd)).split("\0").filter((path) => path !== "");
+  const listed = (await git(["ls-files", "-z", "--others", "--exclude-standard", "--", ".", ...exclusions()], cwd)).split("\0").filter((path) => path !== "");
   if (listed.length === 0) return { patch: "", warning: null };
-  const warning = listed.length > MAX_UNTRACKED_FILES ? `skipped ${listed.length} untracked files (cap is ${MAX_UNTRACKED_FILES}); git add or gitignore them to bring them into the review` : null;
-  const paths = warning === null ? listed : listed.slice(0, MAX_UNTRACKED_FILES);
+  if (listed.length > MAX_UNTRACKED_FILES) {
+    return {
+      patch: "",
+      warning: `skipped ${listed.length} untracked files (cap is ${MAX_UNTRACKED_FILES}); gitignore generated files or git add the ones that belong in the review`
+    };
+  }
   let patch = "";
-  for (const path of paths) {
+  for (const path of listed) {
     try {
       const { stdout } = await execGit("git", ["diff", "--no-index", "--no-color", "--", "/dev/null", path], {
         cwd,
@@ -8332,13 +8338,13 @@ async function untrackedPatches(cwd) {
       patch += error.stdout ?? "";
     }
   }
-  return { patch, warning };
+  return { patch, warning: null };
 }
 async function localDiff(explicitBase, cwd) {
   const headSha = (await git(["rev-parse", "HEAD"], cwd)).trim();
   const baseRef = await resolveBaseRef(explicitBase, cwd);
   const baseSha = (await git(["merge-base", baseRef, "HEAD"], cwd)).trim();
-  const tracked = await git(["diff", "--no-color", "--no-ext-diff", baseSha], cwd);
+  const tracked = await git(["diff", "--no-color", "--no-ext-diff", baseSha, "--", ".", ...exclusions()], cwd);
   const untracked = await untrackedPatches(cwd);
   return {
     diff: tracked + untracked.patch,

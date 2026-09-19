@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -72,6 +72,38 @@ test("a clean checkout produces an empty diff", async () => {
     try {
         const local = await localDiff(undefined, dir);
         assert.equal(local.diff.trim(), "");
+    }
+    finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+test("the ledger directory never feeds back into the diff", async () => {
+    const dir = scratchRepo();
+    try {
+        mkdirSync(join(dir, ".jev-gate"), { recursive: true });
+        writeFileSync(join(dir, ".jev-gate", "ledger.jsonl"), "{\"run\":1}\n");
+        assert.equal((await localDiff(undefined, dir)).diff.trim(), "");
+        // The ledger changes on every review; without the exclusion each write would change
+        // the diff hash and trigger the next review.
+        writeFileSync(join(dir, ".jev-gate", "ledger.jsonl"), "{\"run\":1}\n{\"run\":2}\n");
+        assert.equal((await localDiff(undefined, dir)).diff.trim(), "");
+    }
+    finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+test("an untracked flood is skipped with a warning instead of reviewed", async () => {
+    const dir = scratchRepo();
+    try {
+        mkdirSync(join(dir, "generated"), { recursive: true });
+        assert.equal((await localDiff(undefined, dir)).diff.trim(), "");
+        for (let index = 0; index <= 500; index += 1) {
+            writeFileSync(join(dir, "generated", `file-${index}.txt`), "x\n");
+        }
+        const local = await localDiff(undefined, dir);
+        assert.equal(local.diff.trim(), "", "no untracked patch enters the diff");
+        assert.equal(local.warnings.length, 1);
+        assert.match(local.warnings[0] ?? "", /skipped 501 untracked files/);
     }
     finally {
         rmSync(dir, { recursive: true, force: true });

@@ -178,9 +178,8 @@ repository:
 npm ci && npm run build
 export TYPESAFE_API_KEY=...
 
-# Review one diff locally
-git diff main...HEAD > /tmp/pr.diff
-node dist/bundle/cli.cjs review --diff /tmp/pr.diff
+# Review the local change set against main: merge base, branch commits, uncommitted work
+node dist/bundle/cli.cjs review --base main
 
 # Run every rule over a directory of sampled diffs
 node dist/bundle/cli.cjs calibrate --dir samples/
@@ -214,6 +213,50 @@ execute pull request code, and reads rules from the PR's base commit. The only w
 performs is the sticky comment. The API key lives in your repository secrets and goes only
 to the provider you selected.
 
+## Run it locally
+
+The same rules run on a local checkout, where the change set can include work that has not
+been committed or pushed yet:
+
+```sh
+npm install -g github:totally-tim/jev-gate
+export TYPESAFE_API_KEY=...
+
+jev-gate diff --base main            # merge base + branch commits + uncommitted files
+jev-gate review --base main          # review that change set, exits 1 on a failed gate
+jev-gate review --diff - < x.diff    # review a diff from stdin
+```
+
+`review` without `--diff` builds the local change set itself: everything committed on the
+branch since the merge base with the base ref, plus staged, unstaged, and untracked files,
+as one diff. `--base` defaults to the repository's main branch (`origin/HEAD`, then
+`origin/main`, `origin/master`, `main`, `master`). `--no-gate` keeps the exit code at 0 and
+leaves the verdict to `--json` output. The tool's own `.jev-gate/` directory never enters
+the diff.
+
+A pre-push hook shows the gate before CI does, without blocking the push:
+
+```sh
+printf '#!/bin/sh\nev-gate review --base origin/main --no-gate\n' > .git/hooks/pre-push
+chmod +x .git/hooks/pre-push
+```
+
+## OpenCode plugin
+
+[`plugin/`](plugin/README.md) runs the same review inside an
+[OpenCode](https://opencode.ai) session. It watches the working tree, reviews each new diff
+once, and records the result in `.jev-gate/ledger.jsonl`. With `inject: true` it also hands
+gated findings to the agent before its next model call, once per diff, so the agent can fix
+a finding before it ever reaches a pull request. Ledger mode is the default; run it for a
+while and read the ledger before turning injection on.
+
+```sh
+opencode plugin add 'github:totally-tim/jev-gate::path:plugin'
+```
+
+See the [plugin README](plugin/README.md) for options, the ledger format, and how the
+briefing is phrased.
+
 ## Development
 
 ```sh
@@ -224,6 +267,7 @@ npm test
 
 `dist/` is committed because GitHub runs JavaScript actions without an install step; CI
 fails if `dist/` is stale after a build. The CLI is bundled at `dist/bundle/cli.cjs`.
+`npm test` also typechecks and tests the OpenCode plugin under `plugin/`.
 
 ## License
 

@@ -13,8 +13,8 @@
   },
   "scripts": {
     "build": "tsc && node scripts/build.mjs",
-    "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test \"dist/**/*.test.js\"",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p plugin/tsconfig.json",
+    "test": "npm run build && tsc -p plugin/tsconfig.json && node --test \"dist/**/*.test.js\" \"plugin/dist/**/*.test.js\"",
     "test:one": "node --test",
     "cli": "node dist/bundle/cli.cjs"
   },
@@ -25,6 +25,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "esbuild": "^0.25.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@opencode/plugin": "2.0.5"
   }
 }
