@@ -1,0 +1,186 @@
+# jev-gate
+
+A GitHub Action that reviews a pull request with [TypeSafe Jev](https://typesafe.ai), the
+System One model that returns calibrated probabilities instead of text. It asks the same
+seven questions about every diff — is this touching security-sensitive logic, did it delete
+tests, does it contain secrets, does it break existing callers, are the tests weak, are the
+changes mixed together, do the comments still describe the code — and posts one sticky
+comment with the numbers.
+
+Jev costs $0.042 per million input tokens with output tokens free, so a review of a typical
+diff is a few hundredths of a cent. That is cheap enough to run on every push, which is the
+point: the gate is always there, and it fails only on the rules you choose to gate.
+
+## Quick start
+
+1. Add a repository secret `TYPESAFE_API_KEY` with a key from [console.typesafe.ai](https://console.typesafe.ai).
+2. Copy [examples/caller.yml](examples/caller.yml) to `.github/workflows/jev-gate.yml`.
+3. Optionally add a `.jev-gate.yml` to tune rules and thresholds (see below).
+
+Until a `v1` tag exists, pin the action to a full commit SHA instead of `@v1`.
+
+The first push to a pull request creates the sticky comment; later pushes update it in place
+and show the delta against the previous run.
+
+## What it checks
+
+Every rule is phrased as a concern: a higher number means the concern is more likely
+present. Gated rules fail the check at or above their threshold. Advisory rules report the
+same number and never fail the check.
+
+| Rule | Kind | Default | Threshold | The question it asks |
+| --- | --- | --- | ---: | --- |
+| `danger-sensitive-area` | Noul | gate | 0.50 | Does the diff change security-sensitive logic: auth, authz, sessions or tokens, payments, personal data, or migrations? |
+| `danger-deleted-tests` | Noul | gate | 0.60 | Does the diff delete, disable, or weaken existing tests instead of updating them with the behavior they cover? |
+| `danger-secret-material` | Noul | gate | 0.60 | Does the diff contain credentials, keys, tokens, or connection strings with embedded passwords? |
+| `breaking-change` | Noul | gate | 0.60 | Does the diff change behavior callers or deployments depend on without a migration or compatibility path? |
+| `test-meaningfulness` | Score | advisory | 0.70 | How weak are the tests this diff adds or changes? |
+| `change-hygiene` | Score | advisory | 0.60 | How much does the diff bundle unrelated changes or diverge from the PR description? |
+| `comment-drift` | Noul | advisory | 0.60 | Did the diff change behavior while leaving comments or docs it touches describing the old behavior? |
+
+All seven questions go to Jev in a single batched request about the same state, so the
+fixed request overhead is paid once — the calibration bench measured about 300 tokens of
+overhead per request, which batching amortizes.
+
+The rule text lives in [`src/rules.ts`](src/rules.ts). It is the product: a rule is only as
+good as its wording, and thresholds are only as good as your data.
+
+## The comment
+
+The sticky comment holds a table with each rule's concern probability, its threshold, and
+the delta against the previous run on the same pull request. When a gated rule reaches its
+threshold the check fails and the comment names the rules.
+
+For coding agents the comment also carries a hidden JSON block:
+
+```
+<!-- jev-gate:data
+{"schema":1,"headSha":"...","decisions":[...]}
+-->
+```
+
+An agent can read the pull request comments, parse that block, and act on the exact
+probabilities — for example, resubmit after a fix and compare, or explain which rule is
+blocking.
+
+## Failing CI and branch protection
+
+When a gated rule fails, the action exits non-zero, so the workflow run shows a red check.
+The action never fails for rules that are not gated, and it always skips neutrally (green
+with a warning annotation) when it cannot run. To require the check, mark the `jev-gate`
+job as required in branch protection. Start advisory if you want to watch the numbers for a
+few pull requests first.
+
+## Fork pull requests
+
+GitHub does not pass repository secrets to workflows triggered by pull requests from forks,
+so under the `pull_request` event a fork PR is skipped with a warning. If you want fork PRs
+reviewed, use the `pull_request_target` event and pin the action to a release or SHA. That
+is safe with this action specifically: it never checks out or executes pull request code,
+and it reads the config from the pull request's base commit, so a PR cannot change the rules
+it is reviewed under.
+
+```yaml
+on: pull_request_target
+
+jobs:
+  jev-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: timkraus/jev-gate@8f3c1d0  # pin a release commit
+        with:
+          api-key: ${{ secrets.TYPESAFE_API_KEY }}
+```
+
+## Configuration
+
+The action reads `.jev-gate.yml` from the pull request's base commit. A missing file means
+the defaults; a present but invalid file fails the check, because a config change that
+silently stops working is worse than a red check.
+
+```yaml
+model: jev-latest
+maxStateTokens: 24000
+
+ignore:
+  - "**/node_modules/**"
+  - "**/package-lock.json"
+  - "**/*.min.js"
+  - "**/dist/**"
+
+comment: true
+
+rules:
+  danger-sensitive-area:
+    threshold: 0.45
+  test-meaningfulness:
+    enabled: false
+```
+
+Every setting:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `model` | `jev-latest` | Jev model name. |
+| `maxStateTokens` | `24000` | Budget for the serialized state; between 2000 and 30000. The API caps state plus the longest question near 32k tokens. |
+| `ignore` | lockfiles, lockfile variants, `*.min.js`, `*.min.css`, `*.map`, `node_modules`, `dist` | Glob patterns for files excluded from the state. |
+| `comment` | `true` | Post or update the sticky comment. |
+| `rules.<name>.enabled` | `true` | Set `false` to drop the rule and its tokens. |
+| `rules.<name>.gate` | rule default | Set `true` to make an advisory rule fail the check. |
+| `rules.<name>.threshold` | rule default | Concern probability at which the rule fails (gated) or warns (advisory), 0..1. |
+
+Unknown keys, unknown rule names, and out-of-range values are config errors.
+
+## Calibrating thresholds
+
+The defaults are starting points from the calibration bench (Noul extremes were
+well calibrated; few answers landed between 0.2 and 0.8). They are not your thresholds.
+Before trusting a gate, measure it on real diffs. From a checkout of this repository:
+
+```sh
+npm ci && npm run build
+export TYPESAFE_API_KEY=...
+
+# Review one diff locally
+git diff main...HEAD > /tmp/pr.diff
+node dist/bundle/cli.cjs review --diff /tmp/pr.diff
+
+# Run every rule over a directory of sampled diffs
+node dist/bundle/cli.cjs calibrate --dir samples/
+```
+
+`calibrate` prints one concern probability per rule per sample so you can pick thresholds
+that separate the diffs you would have blocked from the ones you would not. Two practical
+rules: keep gated thresholds outside the 0.2-0.8 band unless you have enough samples to
+justify them, and re-measure after any rule wording change, because the wording moves the
+boundary.
+
+## Costs and limits
+
+At $0.042 per million input tokens, a 6,000-token state costs about $0.00025, so roughly
+forty reviews per cent. A state carries the PR title and description, file metadata, and
+per-file patches capped at 8,000 characters each and 24,000 tokens total; when a diff is
+larger, patches are dropped from the largest files first and the comment says so. Jev takes
+text only, and no attempt is made to review binary files, images, or lockfiles.
+
+## How it runs
+
+The action talks to the GitHub REST API and the TypeSafe API directly. It does not check
+out the repository, does not execute pull request code, and reads rules from the PR's base
+commit. The only write it performs is the sticky comment. The Jev key lives in your
+repository secrets and goes only to `api.typesafe.ai`.
+
+## Development
+
+```sh
+npm ci
+npm run typecheck
+npm test
+```
+
+`dist/` is committed because GitHub runs JavaScript actions without an install step; CI
+fails if `dist/` is stale after a build. The CLI is bundled at `dist/bundle/cli.cjs`.
+
+## License
+
+MIT

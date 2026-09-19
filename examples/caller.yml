@@ -1,0 +1,22 @@
+# Copy this file to .github/workflows/jev-gate.yml in a repository that should use the gate.
+name: jev-gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: jev-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  jev-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: timkraus/jev-gate@v1
+        with:
+          api-key: ${{ secrets.TYPESAFE_API_KEY }}

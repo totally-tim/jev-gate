@@ -1,0 +1,27 @@
+{
+  "name": "jev-gate",
+  "version": "0.1.0",
+  "description": "A GitHub Action that reviews pull requests with TypeSafe Jev: fast, calibrated fuzzy rules for danger and breaking changes, with advisory quality scores.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test \"dist/**/*.test.js\"",
+    "test:one": "node --test",
+    "cli": "node dist/bundle/cli.cjs"
+  },
+  "dependencies": {
+    "@typesafe-ai/sdk": "^0.6.0",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^7.0.2"
+  }
+}

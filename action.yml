@@ -1,0 +1,54 @@
+name: jev-gate
+description: >-
+  Review a pull request with TypeSafe Jev: calibrated concern probabilities for danger
+  and breaking changes, posted as a sticky comment, costing a fraction of a cent per push.
+author: Tim Kraus
+branding:
+  icon: shield
+  color: purple
+inputs:
+  api-key:
+    description: >-
+      TypeSafe API key (store it as a repository secret). Pull requests from forks receive
+      no secrets under the pull_request event; see the README for the pull_request_target option.
+    required: false
+  github-token:
+    description: Token used to read the pull request and post the sticky comment.
+    required: false
+    default: ${{ github.token }}
+  config-path:
+    description: Path to the config file, read from the pull request's base commit.
+    required: false
+    default: .jev-gate.yml
+  model:
+    description: Jev model override; defaults to the config file or jev-latest.
+    required: false
+  comment:
+    description: Set to "false" to skip the sticky comment and rely on the check and job summary.
+    required: false
+    default: "true"
+  on-missing-key:
+    description: What to do when no api-key is available; "skip" or "fail".
+    required: false
+    default: skip
+  on-api-error:
+    description: What to do when the Jev call fails after retries; "skip" or "fail".
+    required: false
+    default: skip
+  max-state-tokens:
+    description: State token budget override; defaults to the config file or 24000.
+    required: false
+  timeout-ms:
+    description: Per-attempt timeout for the Jev call in milliseconds.
+    required: false
+    default: "30000"
+outputs:
+  passed:
+    description: '"true", "false", or "skipped".'
+  failed-gates:
+    description: Comma-separated names of the gated rules that failed.
+  result:
+    description: The full review outcome as JSON.
+runs:
+  using: node20
+  main: dist/bundle/action.cjs
