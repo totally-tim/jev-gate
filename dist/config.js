@@ -2,10 +2,10 @@ import { RULE_DEFINITIONS } from "./rules.js";
 /** Thrown for a config file that exists but cannot be used. The action fails closed on this. */
 export class ConfigError extends Error {
 }
-/** Default model per provider; OpenRouter aliases the latest Jev release with a tilde. */
+/** Pinned default model per provider. */
 export const DEFAULT_MODELS = {
-    typesafe: "jev-latest",
-    openrouter: "~typesafe/jev-latest",
+    typesafe: "jev-1.13.0",
+    openrouter: "typesafe/jev-1.13-20260917",
 };
 export const PROVIDERS = ["typesafe", "openrouter"];
 const DEFAULT_IGNORE = [
@@ -29,7 +29,7 @@ export const DEFAULT_MAX_STATE_TOKENS = 24_000;
 export const MIN_STATE_TOKENS = 2_000;
 export const MAX_STATE_TOKENS = 30_000;
 /** Gated rules answering within this distance of their threshold get a second ask. */
-export const DEFAULT_BORDERLINE_MARGIN = 0.1;
+export const DEFAULT_BORDERLINE_MARGIN = 0;
 export const MAX_BORDERLINE_MARGIN = 0.3;
 function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -46,7 +46,10 @@ function readRuleOverride(name, raw, warnings) {
             override[key] = value;
         }
         else if (key === "threshold") {
-            if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
+            if (typeof value !== "number" ||
+                !Number.isFinite(value) ||
+                value < 0 ||
+                value > 1) {
                 throw new ConfigError(`rules.${name}.threshold must be a number between 0 and 1`);
             }
             override.threshold = value;
@@ -88,7 +91,20 @@ export function validateConfigDocument(raw, warnings = []) {
     const doc = {};
     const knownRules = new Set(RULE_DEFINITIONS.map((rule) => rule.name));
     for (const [key, value] of Object.entries(raw)) {
-        if (key === "provider") {
+        if (key === "mode") {
+            if (value !== "advisory" && value !== "required")
+                throw new ConfigError("mode must be advisory or required");
+            doc.mode = value;
+        }
+        else if (key === "maxRequests") {
+            if (typeof value !== "number" ||
+                !Number.isInteger(value) ||
+                value < 1 ||
+                value > 500)
+                throw new ConfigError("maxRequests must be an integer between 1 and 500");
+            doc.maxRequests = value;
+        }
+        else if (key === "provider") {
             if (value !== "typesafe" && value !== "openrouter") {
                 throw new ConfigError("provider must be typesafe or openrouter");
             }
@@ -112,13 +128,17 @@ export function validateConfigDocument(raw, warnings = []) {
             doc.maxStateTokens = value;
         }
         else if (key === "borderlineMargin") {
-            if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > MAX_BORDERLINE_MARGIN) {
+            if (typeof value !== "number" ||
+                !Number.isFinite(value) ||
+                value < 0 ||
+                value > MAX_BORDERLINE_MARGIN) {
                 throw new ConfigError(`borderlineMargin must be a number between 0 and ${MAX_BORDERLINE_MARGIN}`);
             }
             doc.borderlineMargin = value;
         }
         else if (key === "ignore") {
-            if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+            if (!Array.isArray(value) ||
+                value.some((entry) => typeof entry !== "string")) {
                 throw new ConfigError("ignore must be a list of glob strings");
             }
             doc.ignore = value;
@@ -152,13 +172,15 @@ export function resolveConfig(doc) {
         const override = overrides[definition.name];
         return {
             ...definition,
-            enabled: override?.enabled ?? true,
+            enabled: override?.enabled ?? definition.enabled ?? true,
             gate: override?.gate ?? definition.gate,
             threshold: override?.threshold ?? definition.threshold,
         };
     });
     return {
         provider: doc.provider ?? "typesafe",
+        mode: doc.mode ?? "advisory",
+        maxRequests: doc.maxRequests ?? 64,
         model: doc.model ?? DEFAULT_MODELS[doc.provider ?? "typesafe"],
         maxStateTokens: doc.maxStateTokens ?? DEFAULT_MAX_STATE_TOKENS,
         borderlineMargin: doc.borderlineMargin ?? DEFAULT_BORDERLINE_MARGIN,

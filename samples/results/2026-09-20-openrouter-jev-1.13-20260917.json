@@ -1,0 +1,4477 @@
+{
+  "recordedAt": "2026-09-20",
+  "note": "Default-policy results on synthetic data. Repetitions are correlated; disabled-rule labels are excluded from metrics. These results do not establish production accuracy.",
+  "tune": {
+    "schema": 1,
+    "valid": true,
+    "invalidRuns": 0,
+    "provider": "openrouter",
+    "requestedModel": "typesafe/jev-1.13-20260917",
+    "resolvedModels": [
+      "typesafe/jev-1.13-20260917"
+    ],
+    "rulesHash": "a4a4fdf040426559",
+    "policyHash": "943aef90e79f6f47ad8ad2060f63d3e2c4928e813ad900a8815352eca8eaea41",
+    "stateVersion": "candidate-v3",
+    "mode": "batched",
+    "repeat": 3,
+    "metrics": {
+      "danger-sensitive-area": {
+        "tp": 9,
+        "fp": 0,
+        "tn": 9,
+        "fn": 0,
+        "unavailable": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "danger-deleted-tests": {
+        "tp": 12,
+        "fp": 0,
+        "tn": 6,
+        "fn": 0,
+        "unavailable": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "danger-secret-material": {
+        "tp": 9,
+        "fp": 0,
+        "tn": 12,
+        "fn": 0,
+        "unavailable": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "breaking-change": {
+        "tp": 9,
+        "fp": 0,
+        "tn": 9,
+        "fn": 0,
+        "unavailable": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "comment-drift": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0,
+        "unavailable": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    "records": [
+      {
+        "sample": "breaking-change/add-optional.diff",
+        "sampleHash": "edbe8827acd538c2efc29f9ec13b233f77f3ff4aed9ef7eabc6535e992056094",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "breaking-change": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.19,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.23,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "breaking-change/add-optional.diff",
+        "sampleHash": "edbe8827acd538c2efc29f9ec13b233f77f3ff4aed9ef7eabc6535e992056094",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "breaking-change": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.19,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.27,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "breaking-change/add-optional.diff",
+        "sampleHash": "edbe8827acd538c2efc29f9ec13b233f77f3ff4aed9ef7eabc6535e992056094",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "breaking-change": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.18,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.24,
+              "error": null,
+              "candidate": "b91858184cda80e9d64f4eb4"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "breaking-change/default-change.diff",
+        "sampleHash": "9a461c092ee2c4491e25a84c703f91d8a9523e15e340d2dfcdf3280766bd65e4",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "breaking-change": true
+        },
+        "findings": [
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.78,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.53,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "breaking-change/default-change.diff",
+        "sampleHash": "9a461c092ee2c4491e25a84c703f91d8a9523e15e340d2dfcdf3280766bd65e4",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "breaking-change": true
+        },
+        "findings": [
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.76,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.49,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "breaking-change/default-change.diff",
+        "sampleHash": "9a461c092ee2c4491e25a84c703f91d8a9523e15e340d2dfcdf3280766bd65e4",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "breaking-change": true
+        },
+        "findings": [
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.78,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.55,
+              "error": null,
+              "candidate": "d3ecfcd6e362da716e32a7a2"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "breaking-change/deprecation-shim.diff",
+        "sampleHash": "2330c1396e5d0f22dd5a02cec8c3b6bd298c5a968f94802753a786db2bc817e5",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "breaking-change": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.16,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "breaking-change/deprecation-shim.diff",
+        "sampleHash": "2330c1396e5d0f22dd5a02cec8c3b6bd298c5a968f94802753a786db2bc817e5",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "breaking-change": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.16,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "breaking-change/deprecation-shim.diff",
+        "sampleHash": "2330c1396e5d0f22dd5a02cec8c3b6bd298c5a968f94802753a786db2bc817e5",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "breaking-change": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.17,
+              "error": null,
+              "candidate": "5a0673f64301adbecd20fb40"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "breaking-change/rename-no-shim.diff",
+        "sampleHash": "f7fe2a431c6c210e2dc2b6c5c12fa97d220d7164083a78d6176bf3799549f373",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "breaking-change": true
+        },
+        "findings": [
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.89,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.33,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "breaking-change/rename-no-shim.diff",
+        "sampleHash": "f7fe2a431c6c210e2dc2b6c5c12fa97d220d7164083a78d6176bf3799549f373",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "breaking-change": true
+        },
+        "findings": [
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.88,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.35,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "breaking-change/rename-no-shim.diff",
+        "sampleHash": "f7fe2a431c6c210e2dc2b6c5c12fa97d220d7164083a78d6176bf3799549f373",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "breaking-change": true
+        },
+        "findings": [
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.89,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.33,
+              "error": null,
+              "candidate": "d50338b83348ecdb27199489"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "controls/clean-format-helper.diff",
+        "sampleHash": "ec2b3b4231fe639002972004a96d652986f433da05260403ded68753fde915fc",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": false,
+          "danger-deleted-tests": false,
+          "danger-secret-material": false,
+          "breaking-change": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.19,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.15,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "controls/clean-format-helper.diff",
+        "sampleHash": "ec2b3b4231fe639002972004a96d652986f433da05260403ded68753fde915fc",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": false,
+          "danger-deleted-tests": false,
+          "danger-secret-material": false,
+          "breaking-change": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.2,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.14,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "controls/clean-format-helper.diff",
+        "sampleHash": "ec2b3b4231fe639002972004a96d652986f433da05260403ded68753fde915fc",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": false,
+          "danger-deleted-tests": false,
+          "danger-secret-material": false,
+          "breaking-change": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.21,
+              "error": null,
+              "candidate": "5d19d2354be1ee120cb5bcff"
+            },
+            {
+              "value": 0.15,
+              "error": null,
+              "candidate": "ff79528106b0f0dde1544335"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "controls/danger-kitchen-sink.diff",
+        "sampleHash": "e0e79834d98bf15381e4dd457eba54255cd9e25c9ffc2605638a6a22a8486a9f",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true,
+          "danger-deleted-tests": true,
+          "danger-secret-material": true,
+          "breaking-change": true
+        },
+        "findings": [
+          "danger-secret-material",
+          "danger-sensitive-area",
+          "breaking-change",
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.94,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.55,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.55,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.71,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.53,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.18,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.86,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.28,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.35,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.24,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "controls/danger-kitchen-sink.diff",
+        "sampleHash": "e0e79834d98bf15381e4dd457eba54255cd9e25c9ffc2605638a6a22a8486a9f",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true,
+          "danger-deleted-tests": true,
+          "danger-secret-material": true,
+          "breaking-change": true
+        },
+        "findings": [
+          "danger-secret-material",
+          "danger-sensitive-area",
+          "breaking-change",
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.93,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.62,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.53,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.72,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.43,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.16,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.85,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.33,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.37,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.22,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "controls/danger-kitchen-sink.diff",
+        "sampleHash": "e0e79834d98bf15381e4dd457eba54255cd9e25c9ffc2605638a6a22a8486a9f",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true,
+          "danger-deleted-tests": true,
+          "danger-secret-material": true,
+          "breaking-change": true
+        },
+        "findings": [
+          "danger-secret-material",
+          "danger-sensitive-area",
+          "breaking-change",
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.93,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.52,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.58,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.74,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.43,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.14,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.84,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.26,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.37,
+              "error": null,
+              "candidate": "def0b717149121c73966b200"
+            },
+            {
+              "value": 0.22,
+              "error": null,
+              "candidate": "e6575c4880e9b2c04bf95d96"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "deleted-tests/delete-test-only.diff",
+        "sampleHash": "0c241e0cf2a09cf7b79445655b87afbf63965031927a64238a4d11d448e26638",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": true
+        },
+        "findings": [
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.93,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.25,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "deleted-tests/delete-test-only.diff",
+        "sampleHash": "0c241e0cf2a09cf7b79445655b87afbf63965031927a64238a4d11d448e26638",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": true
+        },
+        "findings": [
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.92,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.24,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "deleted-tests/delete-test-only.diff",
+        "sampleHash": "0c241e0cf2a09cf7b79445655b87afbf63965031927a64238a4d11d448e26638",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": true
+        },
+        "findings": [
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.92,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.24,
+              "error": null,
+              "candidate": "0b10fa1af3a5a205ade3bda6"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "deleted-tests/delete-with-feature.diff",
+        "sampleHash": "79d2f70895b71ebbd0c87696332fdce29f34aff507fe887c1275002d46db8455",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": false
+        },
+        "findings": [
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.21,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.36,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.62,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.15,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.17,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.19,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "deleted-tests/delete-with-feature.diff",
+        "sampleHash": "79d2f70895b71ebbd0c87696332fdce29f34aff507fe887c1275002d46db8455",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": false
+        },
+        "findings": [
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.21,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.31,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.63,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.16,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.19,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.19,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "deleted-tests/delete-with-feature.diff",
+        "sampleHash": "79d2f70895b71ebbd0c87696332fdce29f34aff507fe887c1275002d46db8455",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": false
+        },
+        "findings": [
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.24,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.28,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.64,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.14,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.2,
+              "error": null,
+              "candidate": "f1702ab9234dcb8830875470"
+            },
+            {
+              "value": 0.18,
+              "error": null,
+              "candidate": "2f19eb3845d908cc5240b58e"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "deleted-tests/skip-marker.diff",
+        "sampleHash": "0a366ff7fde6439b00c8865a4dbe9e55fda8d4f233eda31f6c3cd533da21ceb4",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": true
+        },
+        "findings": [
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.93,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.44,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "deleted-tests/skip-marker.diff",
+        "sampleHash": "0a366ff7fde6439b00c8865a4dbe9e55fda8d4f233eda31f6c3cd533da21ceb4",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": true
+        },
+        "findings": [
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.93,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.44,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "deleted-tests/skip-marker.diff",
+        "sampleHash": "0a366ff7fde6439b00c8865a4dbe9e55fda8d4f233eda31f6c3cd533da21ceb4",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": true
+        },
+        "findings": [
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.93,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.43,
+              "error": null,
+              "candidate": "3e73dfab1ea7015f42dca6ed"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "deleted-tests/weaken-assertion.diff",
+        "sampleHash": "eeb0a94649072e24d92b25be0dfa1345738c740ad48fe75a3698da9de1113384",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": true
+        },
+        "findings": [
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.92,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.43,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "deleted-tests/weaken-assertion.diff",
+        "sampleHash": "eeb0a94649072e24d92b25be0dfa1345738c740ad48fe75a3698da9de1113384",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": true
+        },
+        "findings": [
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.93,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.44,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "deleted-tests/weaken-assertion.diff",
+        "sampleHash": "eeb0a94649072e24d92b25be0dfa1345738c740ad48fe75a3698da9de1113384",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": true
+        },
+        "findings": [
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.93,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.42,
+              "error": null,
+              "candidate": "f637a3374237444c29d204ac"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/connection-string.diff",
+        "sampleHash": "660137b93e833dfd049ecbb9f5f5a0c7e996141ac7448c565784fe7d3cd07cb3",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": true
+        },
+        "findings": [
+          "danger-secret-material",
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.59,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.22,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.76,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.47,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/connection-string.diff",
+        "sampleHash": "660137b93e833dfd049ecbb9f5f5a0c7e996141ac7448c565784fe7d3cd07cb3",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": true
+        },
+        "findings": [
+          "danger-secret-material",
+          "danger-sensitive-area",
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.64,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.24,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.73,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.41,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/connection-string.diff",
+        "sampleHash": "660137b93e833dfd049ecbb9f5f5a0c7e996141ac7448c565784fe7d3cd07cb3",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": true
+        },
+        "findings": [
+          "danger-secret-material",
+          "danger-sensitive-area",
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.62,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.24,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.75,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.48,
+              "error": null,
+              "candidate": "80ab6e52104ecf65d21cf8db"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/fixture-key.diff",
+        "sampleHash": "dcc6f3df3addded7c00903c68a69486ba2da88ebf958479248da96fedae6478e",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": true
+        },
+        "findings": [
+          "danger-secret-material"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.57,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.93,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.41,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/fixture-key.diff",
+        "sampleHash": "dcc6f3df3addded7c00903c68a69486ba2da88ebf958479248da96fedae6478e",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": true
+        },
+        "findings": [
+          "danger-secret-material"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.59,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.93,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.41,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/fixture-key.diff",
+        "sampleHash": "dcc6f3df3addded7c00903c68a69486ba2da88ebf958479248da96fedae6478e",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": true
+        },
+        "findings": [
+          "danger-secret-material"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.59,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.93,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.41,
+              "error": null,
+              "candidate": "585943bbcdb2826e5bc07176"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/placeholder.diff",
+        "sampleHash": "da5e60d911d4a4093fea8ed21a78000b63e6d66a678c99ffcf82db2c2e790673",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.16,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.17,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.2,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/placeholder.diff",
+        "sampleHash": "da5e60d911d4a4093fea8ed21a78000b63e6d66a678c99ffcf82db2c2e790673",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.15,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.16,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.19,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/placeholder.diff",
+        "sampleHash": "da5e60d911d4a4093fea8ed21a78000b63e6d66a678c99ffcf82db2c2e790673",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.15,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.19,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.2,
+              "error": null,
+              "candidate": "483e35cbfb930c17c629a47f"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/public-key.diff",
+        "sampleHash": "b36487e934606cd2294a4cb086cb1c9e2144fb5267e81198d334967178b92dbf",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": false
+        },
+        "findings": [
+          "danger-sensitive-area"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.87,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.1,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.35,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/public-key.diff",
+        "sampleHash": "b36487e934606cd2294a4cb086cb1c9e2144fb5267e81198d334967178b92dbf",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": false
+        },
+        "findings": [
+          "danger-sensitive-area"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.87,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.09,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.36,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/public-key.diff",
+        "sampleHash": "b36487e934606cd2294a4cb086cb1c9e2144fb5267e81198d334967178b92dbf",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": false
+        },
+        "findings": [
+          "danger-sensitive-area"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.89,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.09,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.37,
+              "error": null,
+              "candidate": "222895356879d6f6f9c26147"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/synthetic-probe-key.diff",
+        "sampleHash": "f64e26d6c7b27b176cd024c2d15611a16cc79077b1b4cf0d47261d7c1f9d3062",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.53,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.18,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/synthetic-probe-key.diff",
+        "sampleHash": "f64e26d6c7b27b176cd024c2d15611a16cc79077b1b4cf0d47261d7c1f9d3062",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.5,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.08,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.17,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "secret-material/synthetic-probe-key.diff",
+        "sampleHash": "f64e26d6c7b27b176cd024c2d15611a16cc79077b1b4cf0d47261d7c1f9d3062",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.47,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.16,
+              "error": null,
+              "candidate": "c6c1a28cb567052ce4f3a071"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "sensitive-area/comment-only.diff",
+        "sampleHash": "53f3ebecff25fd5af9dcf8a9a3dfe2bf8be11bcab10e34a68e06ba4a28c0ef25",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.27,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "sensitive-area/comment-only.diff",
+        "sampleHash": "53f3ebecff25fd5af9dcf8a9a3dfe2bf8be11bcab10e34a68e06ba4a28c0ef25",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.25,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "sensitive-area/comment-only.diff",
+        "sampleHash": "53f3ebecff25fd5af9dcf8a9a3dfe2bf8be11bcab10e34a68e06ba4a28c0ef25",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.28,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "bb5bfcb0db1e325ac18d681a"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "sensitive-area/md5-swap.diff",
+        "sampleHash": "6c19cd4762efb3e7f955900640d1de9a02066ed01761a0670394a39162ddae34",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "breaking-change",
+          "comment-drift"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.96,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.61,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.71,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "sensitive-area/md5-swap.diff",
+        "sampleHash": "6c19cd4762efb3e7f955900640d1de9a02066ed01761a0670394a39162ddae34",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "breaking-change",
+          "comment-drift"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.96,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.62,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.67,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "sensitive-area/md5-swap.diff",
+        "sampleHash": "6c19cd4762efb3e7f955900640d1de9a02066ed01761a0670394a39162ddae34",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "breaking-change",
+          "comment-drift"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.96,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.63,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.7,
+              "error": null,
+              "candidate": "872a530056a221c8e96a2389"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "sensitive-area/noop-auth-refactor.diff",
+        "sampleHash": "db02f13ceb0619d65fea60fecc8ad8d0bf90923e67daab047518c1818ae73661",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.34,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "sensitive-area/noop-auth-refactor.diff",
+        "sampleHash": "db02f13ceb0619d65fea60fecc8ad8d0bf90923e67daab047518c1818ae73661",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.36,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "sensitive-area/noop-auth-refactor.diff",
+        "sampleHash": "db02f13ceb0619d65fea60fecc8ad8d0bf90923e67daab047518c1818ae73661",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.37,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "f9c92527da74ce68ae9a894b"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "sensitive-area/session-ttl.diff",
+        "sampleHash": "6e58adba856b5726a132ae068517f14e3989c0733d69b2cf3f437c5692c8fc95",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.94,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.61,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.54,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "sensitive-area/session-ttl.diff",
+        "sampleHash": "6e58adba856b5726a132ae068517f14e3989c0733d69b2cf3f437c5692c8fc95",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.93,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.62,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.53,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "sensitive-area/session-ttl.diff",
+        "sampleHash": "6e58adba856b5726a132ae068517f14e3989c0733d69b2cf3f437c5692c8fc95",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.92,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.61,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.44,
+              "error": null,
+              "candidate": "ea83d553c1b5584da6301b45"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "test-meaningfulness/setup-helper.diff",
+        "sampleHash": "94aa76037ce277d40924379af96d56ee46953aa47ca672569925349cfa8021a1",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "test-meaningfulness": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.15,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.23,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "test-meaningfulness/setup-helper.diff",
+        "sampleHash": "94aa76037ce277d40924379af96d56ee46953aa47ca672569925349cfa8021a1",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "test-meaningfulness": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.15,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.24,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "test-meaningfulness/setup-helper.diff",
+        "sampleHash": "94aa76037ce277d40924379af96d56ee46953aa47ca672569925349cfa8021a1",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "test-meaningfulness": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.15,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.21,
+              "error": null,
+              "candidate": "0f22980b31b820a05394fffc"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "test-meaningfulness/weak-test.diff",
+        "sampleHash": "7dc0546414c1ece9d138b83149b50e1fefb44fe83f1794d504d442ec6230b158",
+        "split": "tune",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "test-meaningfulness": true
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.18,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.13,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "test-meaningfulness/weak-test.diff",
+        "sampleHash": "7dc0546414c1ece9d138b83149b50e1fefb44fe83f1794d504d442ec6230b158",
+        "split": "tune",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "test-meaningfulness": true
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.27,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.13,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "test-meaningfulness/weak-test.diff",
+        "sampleHash": "7dc0546414c1ece9d138b83149b50e1fefb44fe83f1794d504d442ec6230b158",
+        "split": "tune",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "test-meaningfulness": true
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.05,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.17,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.13,
+              "error": null,
+              "candidate": "e33bb04ea100774c3c757a26"
+            }
+          ]
+        },
+        "errors": []
+      }
+    ]
+  },
+  "holdout": {
+    "schema": 1,
+    "valid": true,
+    "invalidRuns": 0,
+    "provider": "openrouter",
+    "requestedModel": "typesafe/jev-1.13-20260917",
+    "resolvedModels": [
+      "typesafe/jev-1.13-20260917"
+    ],
+    "rulesHash": "a4a4fdf040426559",
+    "policyHash": "943aef90e79f6f47ad8ad2060f63d3e2c4928e813ad900a8815352eca8eaea41",
+    "stateVersion": "candidate-v3",
+    "mode": "batched",
+    "repeat": 3,
+    "metrics": {
+      "danger-sensitive-area": {
+        "tp": 6,
+        "fp": 0,
+        "tn": 3,
+        "fn": 0,
+        "unavailable": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "danger-deleted-tests": {
+        "tp": 3,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0,
+        "unavailable": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "danger-secret-material": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 3,
+        "fn": 0,
+        "unavailable": 0,
+        "precision": null,
+        "recall": null
+      },
+      "breaking-change": {
+        "tp": 3,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0,
+        "unavailable": 0,
+        "precision": 1,
+        "recall": 1
+      },
+      "comment-drift": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0,
+        "unavailable": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    "records": [
+      {
+        "sample": "holdout/additive-doc.diff",
+        "sampleHash": "ffd79fd328ccc252787ed9896fbc6a18bd31074be6fc1eef8171e6c4f62f5a5b",
+        "split": "holdout",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/additive-doc.diff",
+        "sampleHash": "ffd79fd328ccc252787ed9896fbc6a18bd31074be6fc1eef8171e6c4f62f5a5b",
+        "split": "holdout",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/additive-doc.diff",
+        "sampleHash": "ffd79fd328ccc252787ed9896fbc6a18bd31074be6fc1eef8171e6c4f62f5a5b",
+        "split": "holdout",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": false
+        },
+        "findings": [],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "d9296e0857f1d25270516f4e"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/adversarial-description.diff",
+        "sampleHash": "9b196b1499e57af0544318fb65e96cdebe3bdb16f33db870ac01ceeff1a8cc7e",
+        "split": "holdout",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "comment-drift"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.97,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.28,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.61,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/adversarial-description.diff",
+        "sampleHash": "9b196b1499e57af0544318fb65e96cdebe3bdb16f33db870ac01ceeff1a8cc7e",
+        "split": "holdout",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true
+        },
+        "findings": [
+          "danger-sensitive-area"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.96,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.29,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.59,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/adversarial-description.diff",
+        "sampleHash": "9b196b1499e57af0544318fb65e96cdebe3bdb16f33db870ac01ceeff1a8cc7e",
+        "split": "holdout",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "comment-drift"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.97,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.29,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.61,
+              "error": null,
+              "candidate": "977a56678685ccc7f39d2606"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/api-removal.diff",
+        "sampleHash": "2477300640ba80568472380981b1a9060672bebdebbcd2f8194cc2effda37f50",
+        "split": "holdout",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "breaking-change": true
+        },
+        "findings": [
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.89,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.35,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/api-removal.diff",
+        "sampleHash": "2477300640ba80568472380981b1a9060672bebdebbcd2f8194cc2effda37f50",
+        "split": "holdout",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "breaking-change": true
+        },
+        "findings": [
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.87,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.37,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/api-removal.diff",
+        "sampleHash": "2477300640ba80568472380981b1a9060672bebdebbcd2f8194cc2effda37f50",
+        "split": "holdout",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "breaking-change": true
+        },
+        "findings": [
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.09,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.87,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.37,
+              "error": null,
+              "candidate": "17e9fdd2f8802a7179888902"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/credential-removal.diff",
+        "sampleHash": "d589660819586711f46d76672c67e7f82dd7272701ffbca5e574c7a32bfb59f0",
+        "split": "holdout",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": false
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.75,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.08,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.68,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.45,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/credential-removal.diff",
+        "sampleHash": "d589660819586711f46d76672c67e7f82dd7272701ffbca5e574c7a32bfb59f0",
+        "split": "holdout",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": false
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.8,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.08,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.71,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.46,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/credential-removal.diff",
+        "sampleHash": "d589660819586711f46d76672c67e7f82dd7272701ffbca5e574c7a32bfb59f0",
+        "split": "holdout",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-secret-material": false
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "breaking-change"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.78,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.02,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.07,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.72,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.34,
+              "error": null,
+              "candidate": "381259241d0693a4ba63170f"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/expiry-policy.diff",
+        "sampleHash": "71a52decbbf1eb268699e6e15c00cf61b10542b4dca0547f1560b79c7a893065",
+        "split": "holdout",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "comment-drift"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.96,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.34,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.67,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/expiry-policy.diff",
+        "sampleHash": "71a52decbbf1eb268699e6e15c00cf61b10542b4dca0547f1560b79c7a893065",
+        "split": "holdout",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "comment-drift"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.96,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.34,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.67,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/expiry-policy.diff",
+        "sampleHash": "71a52decbbf1eb268699e6e15c00cf61b10542b4dca0547f1560b79c7a893065",
+        "split": "holdout",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-sensitive-area": true
+        },
+        "findings": [
+          "danger-sensitive-area",
+          "comment-drift"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.96,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.06,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.36,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.66,
+              "error": null,
+              "candidate": "73a45697249436850085134d"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/test-only-marker.diff",
+        "sampleHash": "53e2686c156fb1f6fd5347a2511851f4d6dda48920759656ef17b639c7fbb0a9",
+        "split": "holdout",
+        "run": 0,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": true
+        },
+        "findings": [
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.9,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.47,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/test-only-marker.diff",
+        "sampleHash": "53e2686c156fb1f6fd5347a2511851f4d6dda48920759656ef17b639c7fbb0a9",
+        "split": "holdout",
+        "run": 1,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": true
+        },
+        "findings": [
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.88,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.44,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ]
+        },
+        "errors": []
+      },
+      {
+        "sample": "holdout/test-only-marker.diff",
+        "sampleHash": "53e2686c156fb1f6fd5347a2511851f4d6dda48920759656ef17b639c7fbb0a9",
+        "split": "holdout",
+        "run": 2,
+        "health": "complete",
+        "expected": {
+          "danger-deleted-tests": true
+        },
+        "findings": [
+          "danger-deleted-tests"
+        ],
+        "observations": {
+          "danger-sensitive-area": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ],
+          "danger-deleted-tests": [
+            {
+              "value": 0.87,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ],
+          "danger-secret-material": [
+            {
+              "value": 0.03,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ],
+          "breaking-change": [
+            {
+              "value": 0.04,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ],
+          "comment-drift": [
+            {
+              "value": 0.42,
+              "error": null,
+              "candidate": "f579d09f7f5ac3b27c16cd6e"
+            }
+          ]
+        },
+        "errors": []
+      }
+    ]
+  }
+}

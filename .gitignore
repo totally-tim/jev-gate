@@ -2,3 +2,5 @@ node_modules/
 *.log
 .env
 plugin/dist/
+
+.jev-gate/

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { createServer } from "node:http";
+import { createServer, } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -21,21 +21,35 @@ function startMockServer(state) {
                 response.writeHead(status, { "content-type": contentType });
                 response.end(typeof payload === "string" ? payload : JSON.stringify(payload));
             };
-            if (url.pathname === "/v1/systemone" || url.pathname === "/api/alpha/decisions") {
+            if (url.pathname === "/v1/systemone" ||
+                url.pathname === "/api/alpha/decisions") {
                 state.paths.push(url.pathname);
+                if (state.failProvider) {
+                    send(401, { message: "bad key" });
+                    return;
+                }
                 const parsed = JSON.parse(body);
                 const answers = {};
                 for (const [name, question] of Object.entries(parsed.questions)) {
-                    const value = name === "danger-sensitive-area" ? state.dangerProbability : 0.05;
+                    const value = name === "danger-sensitive-area"
+                        ? state.dangerProbability
+                        : name === "breaking-change"
+                            ? (state.breakingProbability ?? 0.05)
+                            : 0.05;
                     answers[name] =
                         question.type === "noul"
                             ? { type: "noul", noul: value }
                             : { type: "score", score: value * 2, confidence: 0.9 };
                 }
-                send(200, { model: "jev-mock", answers, usage: { input_tokens: 1234, output_tokens: 0 } });
+                send(200, {
+                    model: "jev-mock",
+                    answers,
+                    usage: { input_tokens: 1234, output_tokens: 0 },
+                });
                 return;
             }
             if (url.pathname === "/repos/o/r/pulls/3") {
+                state.reads = (state.reads ?? 0) + 1;
                 send(200, {
                     number: 3,
                     title: "Change the login flow",
@@ -46,8 +60,18 @@ function startMockServer(state) {
                     deletions: 1,
                     changed_files: 1,
                     user: { login: "dev" },
-                    base: { ref: "main", sha: "b".repeat(40), repo: { full_name: "o/r" } },
-                    head: { sha: "h".repeat(40), repo: { full_name: "o/r" } },
+                    base: {
+                        ref: "main",
+                        sha: "b".repeat(40),
+                        repo: { full_name: "o/r" },
+                    },
+                    head: {
+                        sha: ((state.moveHead && state.reads > 1) ||
+                            (state.moveBeforePublication && state.reads > 3)
+                            ? "c"
+                            : "a").repeat(40),
+                        repo: { full_name: "o/r" },
+                    },
                 });
                 return;
             }
@@ -56,7 +80,7 @@ function startMockServer(state) {
                     {
                         filename: "src/auth.ts",
                         status: "modified",
-                        additions: 3,
+                        additions: 2,
                         deletions: 1,
                         patch: "@@ -1,2 +1,3 @@\n-old\n+new\n+more\n",
                     },
@@ -64,14 +88,19 @@ function startMockServer(state) {
                 return;
             }
             if (url.pathname === "/repos/o/r/contents/.jev-gate.yml") {
-                send(404, { message: "Not Found" });
+                if (state.config)
+                    send(200, state.config, "text/yaml");
+                else
+                    send(404, { message: "Not Found" });
                 return;
             }
-            if (url.pathname === "/repos/o/r/issues/3/comments" && request.method === "GET") {
+            if (url.pathname === "/repos/o/r/issues/3/comments" &&
+                request.method === "GET") {
                 send(200, []);
                 return;
             }
-            if (url.pathname === "/repos/o/r/issues/3/comments" && request.method === "POST") {
+            if (url.pathname === "/repos/o/r/issues/3/comments" &&
+                request.method === "POST") {
                 state.comments.push(JSON.parse(body).body);
                 send(201, { id: 1 });
                 return;
@@ -116,6 +145,7 @@ async function runAction(state, options = {}) {
                     TYPESAFE_BASE_URL: mock.url,
                     OPENROUTER_BASE_URL: mock.url,
                     ...(options.provider ? { INPUT_PROVIDER: options.provider } : {}),
+                    INPUT_MODE: options.mode ?? "advisory",
                     INPUT_API_KEY: "test-key",
                     INPUT_GITHUB_TOKEN: "test-token",
                     GITHUB_OUTPUT: outputPath,
@@ -147,20 +177,57 @@ test("the bundled action posts a sticky comment and passes when gates clear", as
     assert.equal(result.code, 0, result.log);
     assert.equal(state.comments.length, 1, result.log);
     assert.ok(state.comments[0]?.includes("<!-- jev-gate:report -->"));
-    assert.ok(state.comments[0]?.includes("src/auth.ts") === false, "the comment does not embed the diff");
-    assert.ok(state.comments[0]?.includes("All gated rules passed."));
+    assert.ok(!state.comments[0]?.includes("+more"), "the comment does not embed raw diff content");
+    assert.ok(state.comments[0]?.includes("No open findings"));
     assert.ok(result.outputs.includes("passed=true"), result.log);
-    assert.ok(result.summary.includes("Jev gate"));
+    assert.ok(result.summary.includes("JEV review"));
     assert.deepEqual(state.paths, ["/v1/systemone"]);
 });
-test("the bundled action fails the check when a gated rule trips", async () => {
+test("invalid policy publishes unavailable status without provider calls", async () => {
+    const state = {
+        dangerProbability: 0,
+        comments: [],
+        paths: [],
+        config: "not-a-setting: true",
+    };
+    const r = await runAction(state);
+    assert.equal(r.code, 2, r.log);
+    assert.equal(state.paths.length, 0);
+    assert.ok(state.comments[0]?.includes("invalid"));
+    assert.ok(r.outputs.includes("passed=unavailable"));
+});
+test("required mode blocks configured findings and advisory mode preserves them", async () => {
+    const state = {
+        dangerProbability: 0,
+        breakingProbability: 0.99,
+        comments: [],
+        paths: [],
+    };
+    const r = await runAction(state, { mode: "required" });
+    assert.equal(r.code, 1, r.log);
+    assert.ok(r.outputs.includes("health=complete"));
+    assert.ok(r.outputs.includes("passed=false"));
+});
+test("a head change while locating the prior comment prevents publication", async () => {
+    const state = {
+        dangerProbability: 0,
+        comments: [],
+        paths: [],
+        moveBeforePublication: true,
+    };
+    const r = await runAction(state);
+    assert.equal(r.code, 2, r.log);
+    assert.equal(state.paths.length, 1);
+    assert.equal(state.comments.length, 0);
+});
+test("the bundled action routes sensitive changes for review without blocking", async () => {
     const state = { dangerProbability: 0.9, comments: [], paths: [] };
     const result = await runAction(state);
-    assert.equal(result.code, 1, result.log);
+    assert.equal(result.code, 0, result.log);
     assert.equal(state.comments.length, 1, result.log);
     assert.ok(state.comments[0]?.includes("danger-sensitive-area"));
-    assert.ok(result.outputs.includes("passed=false"), result.log);
-    assert.ok(result.outputs.includes("failed-gates=danger-sensitive-area"), result.log);
+    assert.ok(result.outputs.includes("status=needs-review"), result.log);
+    assert.ok(!result.outputs.includes("failed-gates=danger-sensitive-area"), result.log);
 });
 test("the bundled action reaches the OpenRouter decisions endpoint when configured", async () => {
     const state = { dangerProbability: 0.05, comments: [], paths: [] };
@@ -169,4 +236,28 @@ test("the bundled action reaches the OpenRouter decisions endpoint when configur
     assert.equal(state.comments.length, 1, result.log);
     assert.deepEqual(state.paths, ["/api/alpha/decisions"]);
     assert.ok(result.outputs.includes("passed=true"), result.log);
+});
+test("provider failure produces an unavailable comment and a failing status", async () => {
+    const state = {
+        dangerProbability: 0,
+        comments: [],
+        paths: [],
+        failProvider: true,
+    };
+    const r = await runAction(state);
+    assert.equal(r.code, 2, r.log);
+    assert.ok(r.outputs.includes("health=unavailable"));
+    assert.ok(state.comments[0]?.includes("unavailable"));
+});
+test("a changed PR head prevents model calls and publication of stale results", async () => {
+    const state = {
+        dangerProbability: 0,
+        comments: [],
+        paths: [],
+        moveHead: true,
+    };
+    const r = await runAction(state);
+    assert.equal(r.code, 2, r.log);
+    assert.equal(state.paths.length, 0);
+    assert.equal(state.comments.length, 0);
 });

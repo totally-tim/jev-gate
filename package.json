@@ -1,7 +1,7 @@
 {
   "name": "jev-gate",
-  "version": "0.1.0",
-  "description": "A GitHub Action that reviews pull requests with TypeSafe Jev: calibrated rules for danger and breaking changes, with advisory quality scores.",
+  "version": "0.2.0",
+  "description": "A review companion for GitHub and coding agents, with located findings and explicit coverage.",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -35,5 +35,8 @@
   "homepage": "https://github.com/totally-tim/jev-gate#readme",
   "bugs": {
     "url": "https://github.com/totally-tim/jev-gate/issues"
+  },
+  "overrides": {
+    "@opentelemetry/core": "2.8.0"
   }
 }

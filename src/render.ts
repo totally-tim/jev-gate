@@ -1,158 +1,196 @@
-import type { ReviewOutcome, RuleDecision } from "./types.js";
-
+import type { ReviewOutcome, RuleDecision, Finding } from "./types.js";
 export const COMMENT_MARKER = "<!-- jev-gate:report -->";
-const DATA_OPEN = "<!-- jev-gate:data";
-const DATA_CLOSE = "-->";
-
-/** Read the previous run out of the sticky comment's hidden data block. */
-export function parsePreviousOutcome(commentBody: string): ReviewOutcome | null {
-  const open = commentBody.indexOf(DATA_OPEN);
-  if (open === -1) return null;
-  const close = commentBody.indexOf(DATA_CLOSE, open + DATA_OPEN.length);
-  if (close === -1) return null;
+const DATA_OPEN = "<!-- jev-gate:data",
+  DATA_CLOSE = "-->";
+export function parsePreviousOutcome(body: string): ReviewOutcome | null {
+  const start = body.indexOf(DATA_OPEN),
+    end = body.indexOf(DATA_CLOSE, start + DATA_OPEN.length);
+  if (start < 0 || end < 0) return null;
   try {
-    const parsed = JSON.parse(commentBody.slice(open + DATA_OPEN.length, close).trim()) as ReviewOutcome;
-    if (parsed.schema !== 1 || !Array.isArray(parsed.decisions)) return null;
-    return parsed;
+    const v = JSON.parse(
+      body.slice(start + DATA_OPEN.length, end),
+    ) as ReviewOutcome;
+    if (
+      v?.schema !== 2 ||
+      typeof v.snapshotId !== "string" ||
+      typeof v.model !== "string" ||
+      typeof v.policyHash !== "string" ||
+      !Array.isArray(v.findings) ||
+      !Array.isArray(v.decisions)
+    )
+      return null;
+    if (
+      v.findings.some(
+        (f) =>
+          !f ||
+          typeof f.id !== "string" ||
+          typeof f.rule !== "string" ||
+          typeof f.path !== "string",
+      )
+    )
+      return null;
+    if (
+      v.decisions.some(
+        (d) =>
+          !d ||
+          typeof d.name !== "string" ||
+          !(d.value === null || typeof d.value === "number"),
+      )
+    )
+      return null;
+    return v;
   } catch {
     return null;
   }
 }
-
-const percent = (value: number): string => `${(value * 100).toFixed(1)}%`;
-
-const bar = (value: number): string => {
-  const filled = Math.round(Math.min(1, Math.max(0, value)) * 10);
-  return "█".repeat(filled) + "░".repeat(10 - filled);
-};
-
-function delta(current: number | null, previous: number | null | undefined): string {
-  if (current === null || previous === undefined || previous === null) return "-";
-  const diff = (current - previous) * 100;
-  if (Math.abs(diff) < 0.05) return "0.0pp";
-  return `${diff > 0 ? "+" : "-"}${Math.abs(diff).toFixed(1)}pp`;
+const escape = (s: string): string =>
+  s
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replace(/[\\`*_[\]{}()|!]/g, (c) => `&#${c.charCodeAt(0)};`)
+    .replaceAll("\n", " ")
+    .replaceAll("\r", "");
+export function displayValue(
+  d: Pick<RuleDecision, "kind" | "probability" | "level" | "levels">,
+): string {
+  return d.kind === "noul"
+    ? d.probability === null
+      ? "unavailable"
+      : `${(d.probability * 100).toFixed(1)}% probability`
+    : d.level === undefined
+      ? "not applicable"
+      : `${d.level.toFixed(2)} / ${(d.levels ?? 2) - 1} rubric score`;
 }
-
-function status(decision: RuleDecision): string {
-  if (decision.error !== null) return "**error**";
-  if (decision.failed) return "**fail**";
-  return decision.exceeded ? "warn" : "ok";
+function location(
+  f: Finding,
+  outcome: ReviewOutcome,
+  repository?: string,
+): string {
+  const label = `${f.path}${f.startLine === null ? "" : `:${f.startLine}`}${f.side === "old" ? " (before change)" : ""}`;
+  const sha = f.side === "old" ? outcome.baseSha : outcome.headSha;
+  if (!repository || !/^[a-f0-9]{40}$/i.test(sha))
+    return `\`${escape(label)}\``;
+  const path = f.path.split("/").map(encodeURIComponent).join("/");
+  return `[${escape(label)}](https://github.com/${repository}/blob/${sha}/${path}${f.startLine === null ? "" : `#L${f.startLine}`})`;
 }
-
-function detail(decision: RuleDecision): string | null {
-  if (decision.error !== null) {
-    const consequence = decision.gate
-      ? "This gated rule fails the check until it can be graded again."
-      : "This run reports it without a verdict.";
-    return `- \`${decision.name}\` could not be graded: ${decision.error}. ${consequence}`;
-  }
-  if (!decision.exceeded) return null;
-  const level =
-    decision.kind === "score" && decision.level !== undefined && decision.levels !== undefined
-      ? ` (expected level ${decision.level.toFixed(2)} of ${decision.levels - 1})`
-      : "";
-  const kind = decision.failed ? "failed" : "warn";
-  const probability = decision.probability === null ? "n/a" : percent(decision.probability);
-  const asks =
-    decision.samples !== undefined && decision.samples.length > 1
-      ? ` (two asks: ${decision.samples.map(percent).join(", ")})`
-      : "";
-  return `- \`${decision.name}\` ${kind} at ${probability}${asks}${level}: ${decision.title}.`;
-}
-
-function renderBody(outcome: ReviewOutcome, previous: ReviewOutcome | null): string {
-  const previousByName = new Map<string, number | null>(
-    (previous?.decisions ?? []).map((decision) => [decision.name, decision.probability]),
-  );
-  const erroredGates = outcome.erroredGates ?? [];
-  const lines: string[] = [];
-  lines.push(`### Jev gate: \`${outcome.headSha.slice(0, 12)}\``);
-  lines.push("");
-  if (outcome.failedGates.length > 0 || erroredGates.length > 0) {
-    if (outcome.failedGates.length > 0) {
-      lines.push(
-        `**${outcome.failedGates.length} gated rule${outcome.failedGates.length === 1 ? "" : "s"} failed:** ` +
-          outcome.failedGates.map((name) => `\`${name}\``).join(", ") +
-          ". This check fails until they clear or the change is overridden.",
-      );
-    }
-    if (erroredGates.length > 0) {
-      lines.push(
-        `**${erroredGates.length} gated rule${erroredGates.length === 1 ? "" : "s"} could not be graded:** ` +
-          erroredGates.map((name) => `\`${name}\``).join(", ") +
-          ". A re-run usually clears a malformed response; the check fails until the rule can be graded.",
-      );
-    }
+function renderBody(
+  outcome: ReviewOutcome,
+  previous: ReviewOutcome | null,
+  repository?: string,
+): string {
+  const coverage = outcome.coverage.files,
+    active = outcome.findings.filter((f) => f.status === "open");
+  const lines = [
+    `### JEV review: ${outcome.status}`,
+    "",
+    `Review health: **${outcome.health}**. ${coverage.filter((f) => f.status === "reviewed").length} files reviewed, ${coverage.filter((f) => f.status === "excluded").length} excluded, ${coverage.filter((f) => f.status === "partial" || f.status === "unavailable").length} with gaps.`,
+    `Snapshot \`${outcome.snapshotId.slice(0, 12)}\`; head \`${outcome.headSha.slice(0, 12) || "uncommitted input"}\`. Policy: ${escape(outcome.configSource)} (${outcome.mode}).`,
+    "",
+  ];
+  if (outcome.health !== "complete")
     lines.push(
-      "Adjust the grading in `.jev-gate.yml` at the repository root: set `gate: false` or " +
-        "raise `threshold` for a rule, or exclude paths with `ignore`. The file is read from " +
-        "the base commit, so a pull request cannot change the rules it is judged by.",
+      "This review is incomplete. An empty finding list does not establish that the change was reviewed.",
+      "",
     );
-  } else {
-    lines.push("All gated rules passed.");
-  }
-  lines.push("");
-  lines.push("| Rule | Concern | Threshold | Result | Δ |");
-  lines.push("| --- | --- | ---: | :---: | ---: |");
-  for (const decision of outcome.decisions) {
-    const name = decision.gate ? `${decision.name} (gate)` : decision.name;
-    const concern =
-      decision.probability === null ? "n/a" : `\`${bar(decision.probability)}\` ${percent(decision.probability)}`;
+  if (!active.length)
     lines.push(
-      `| ${name} | ${concern} | ` +
-        `${percent(decision.threshold)} | ${status(decision)} | ` +
-        `${delta(decision.probability, previousByName.get(decision.name))} |`,
+      outcome.health === "complete"
+        ? "No open findings in the reviewed scope."
+        : "No open findings were produced for the available scope.",
+      "",
+    );
+  for (const f of outcome.findings) {
+    const freshness = previous?.findings.some((p) => p.id === f.id)
+      ? "existing"
+      : "new";
+    lines.push(
+      `- **${escape(f.title)}** (${f.category}; ${f.status}; ${freshness}) at ${location(f, outcome, repository)}.`,
+      `  ${escape(f.evidence)} ${escape(f.verification)}`,
+      `  Finding \`${f.id}\`.${f.disposition ? ` Disposition: ${escape(f.disposition.reason)}.` : ""}`,
+      "",
     );
   }
-  lines.push("");
-  const details = outcome.decisions.map(detail).filter((line): line is string => line !== null);
-  if (details.length > 0) {
-    lines.push(...details);
-    lines.push("");
+  if (
+    previous &&
+    previous.policyHash === outcome.policyHash &&
+    previous.model === outcome.model &&
+    outcome.health === "complete"
+  ) {
+    const gone = previous.findings.filter(
+      (f) => !outcome.findings.some((n) => n.id === f.id),
+    );
+    if (gone.length)
+      lines.push(
+        `${gone.length} previous finding(s) are no longer present in this assessment.`,
+        "",
+      );
   }
-  if (outcome.truncated) {
-    lines.push("The diff was larger than the state budget, so some file patches were dropped before review.");
-    lines.push("");
-  }
-  const cost = outcome.costUSD < 0.00001 ? "$<0.00001" : `$${outcome.costUSD.toFixed(5)}`;
+  for (const file of coverage.filter((f) => f.status !== "reviewed"))
+    lines.push(
+      `- Coverage: \`${escape(file.path)}\` ${file.status}: ${escape(file.reason ?? "")}.`,
+    );
+  for (const w of outcome.coverage.warnings)
+    lines.push(`- Coverage warning: ${escape(w)}`);
+  for (const error of outcome.errors.slice(0, 20))
+    lines.push(`- Review error: ${escape(error)}`);
   lines.push(
-    `<sub>model ${outcome.model} · ${Math.round(outcome.latencyMs)} ms · ` +
-      `${outcome.inputTokens.toLocaleString("en-US")} input tokens (${cost}) · ` +
-      `base ${outcome.baseSha.slice(0, 12)}, head ${outcome.headSha.slice(0, 12)} · ` +
-      `advisory rules report only and never fail this check.</sub>`,
+    "",
+    "<details>",
+    "<summary>Assessment details</summary>",
+    "",
+    "| Rule | Candidate | Observation | Result |",
+    "| --- | --- | --- | --- |",
+  );
+  for (const d of outcome.decisions)
+    lines.push(
+      `| ${escape(d.name)} | ${escape(d.candidate.path)} | ${displayValue(d)} | ${d.error ? "unavailable" : d.exceeded ? "review requested" : "below threshold"} |`,
+    );
+  lines.push(
+    "",
+    `Provider ${outcome.provider}; model ${escape(outcome.model)}; rules \`${outcome.rulesHash}\`; ${outcome.inputTokens} input tokens; estimated $${outcome.costUSD.toFixed(6)}; ${Math.round(outcome.latencyMs)} ms across model calls.`,
+    "",
+    "</details>",
   );
   return lines.join("\n");
 }
-
-function dataBlock(outcome: ReviewOutcome): string {
-  return `${DATA_OPEN}\n${JSON.stringify(outcome)}\n${DATA_CLOSE}`;
+export function renderComment(
+  outcome: ReviewOutcome,
+  previous: ReviewOutcome | null,
+  repository?: string,
+): string {
+  const data = JSON.stringify(outcome)
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e");
+  const result = `${COMMENT_MARKER}\n${renderBody(outcome, previous, repository)}\n\n${DATA_OPEN}\n${data}\n${DATA_CLOSE}\n`;
+  // GitHub comments have a size limit; keep the summary and authoritative result in job outputs.
+  if (result.length > 60_000)
+    return `${COMMENT_MARKER}\nJEV review: ${outcome.status}. Review health: ${outcome.health}. Snapshot \`${outcome.snapshotId}\`.\n\nThe report exceeds the comment size limit. Read the workflow summary and result output for all findings and coverage.\n`;
+  return result;
 }
-
-/** The sticky PR comment: rendered body plus the machine-readable block. */
-export function renderComment(outcome: ReviewOutcome, previous: ReviewOutcome | null): string {
-  return `${COMMENT_MARKER}\n${renderBody(outcome, previous)}\n\n${dataBlock(outcome)}\n`;
-}
-
-/** The job summary written to GITHUB_STEP_SUMMARY. */
 export function renderSummary(outcome: ReviewOutcome): string {
-  return `${renderBody(outcome, null)}\n`;
+  return renderBody(outcome, null) + "\n";
 }
-
-/** A plain-text table for CLI output. */
 export function renderPlainTable(outcome: ReviewOutcome): string {
-  const rows = outcome.decisions.map((decision) => [
-    `${decision.name}${decision.gate ? " (gate)" : ""}`,
-    decision.probability === null ? "n/a" : percent(decision.probability),
-    percent(decision.threshold),
-    status(decision).replaceAll("*", ""),
-  ]);
-  const header = ["rule", "concern", "threshold", "result"];
-  const widths = header.map((title, index) =>
-    Math.max(title.length, ...rows.map((row) => (row[index] as string).length)),
+  const lines = [
+    `JEV review: ${outcome.status} (health: ${outcome.health}, mode: ${outcome.mode})`,
+    `snapshot ${outcome.snapshotId}`,
+    `policy ${outcome.configSource} (${outcome.policyHash.slice(0, 12)})`,
+    "",
+  ];
+  for (const f of outcome.findings)
+    lines.push(
+      `${f.status} ${f.rule} ${f.path}${f.startLine === null ? "" : `:${f.startLine}`} [${f.id}]`,
+      `  ${f.verification}`,
+    );
+  if (!outcome.findings.length)
+    lines.push("No findings in the available scope.");
+  lines.push(
+    "",
+    `Coverage: ${outcome.coverage.files.filter((f) => f.status === "reviewed").length} reviewed / ${outcome.coverage.files.length} collected files.`,
   );
-  const format = (row: readonly string[]): string =>
-    row.map((cell, index) => cell.padEnd(widths[index] as number)).join("  ").trimEnd();
-  const lines = [format(header), format(widths.map((width) => "-".repeat(width)))];
-  for (const row of rows) lines.push(format(row));
+  for (const f of outcome.coverage.files.filter((f) => f.status !== "reviewed"))
+    lines.push(`${f.status}: ${f.path}: ${f.reason}`);
+  lines.push(...outcome.coverage.warnings, ...outcome.errors);
   return lines.join("\n");
 }

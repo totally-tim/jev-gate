@@ -1,9 +1,10 @@
+# Replace YOUR_REVIEWED_COMMIT_SHA with a full commit containing JEV Gate 0.2.
 # Copy this file to .github/workflows/jev-gate.yml in a repository that should use the gate.
 name: jev-gate
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
 
 permissions:
   contents: read
@@ -17,7 +18,7 @@ jobs:
   jev-gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: totally-tim/jev-gate@v1
+      - uses: totally-tim/jev-gate@YOUR_REVIEWED_COMMIT_SHA
         with:
           # Either provider's key works here; set `provider` in .jev-gate.yml to choose.
           api-key: ${{ secrets.TYPESAFE_API_KEY }}

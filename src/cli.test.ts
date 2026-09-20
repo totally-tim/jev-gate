@@ -57,7 +57,10 @@ test("text without diff headers yields no files", () => {
 });
 
 test("review rejects --diff and --base together, and an unknown command fails", async () => {
-  assert.equal(await runCli(["review", "--diff", "x.diff", "--base", "main"]), 2);
+  assert.equal(
+    await runCli(["review", "--diff", "x.diff", "--base", "main"]),
+    2,
+  );
   assert.equal(await runCli(["nonsense"]), 2);
 });
 
@@ -72,5 +75,5 @@ test("the bundled CLI runs when invoked through a bin symlink", () => {
   const result = spawnSync(process.execPath, [link], { encoding: "utf8" });
   rmSync(dir, { recursive: true, force: true });
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /jev-gate: Jev-powered PR review rules/);
+  assert.match(result.stdout, /jev-gate: a review companion/);
 });

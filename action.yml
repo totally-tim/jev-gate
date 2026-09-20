@@ -1,7 +1,6 @@
 name: jev-gate
 description: >-
-  Review a pull request with TypeSafe Jev: calibrated probabilities for danger and breaking
-  changes, posted as a sticky comment, for less than a cent per push.
+  Review a pull request with located JEV findings, verification steps, and explicit coverage.
 author: Tim Kraus
 branding:
   icon: shield
@@ -26,20 +25,15 @@ inputs:
       Decisions provider: "typesafe" (the default) or "openrouter". Overrides the config file.
     required: false
   model:
-    description: Jev model override; defaults to the config file or the provider's latest model.
+    description: Jev model override; defaults to the config file or the provider's pinned default model.
     required: false
   comment:
     description: Set to "false" to skip the sticky comment and rely on the check and job summary.
     required: false
     default: "true"
-  on-missing-key:
-    description: What to do when no api-key is available; "skip" or "fail".
+  mode:
+    description: 'Review policy: advisory or required. Overrides repository configuration.'
     required: false
-    default: skip
-  on-api-error:
-    description: What to do when the Jev call fails after retries; "skip" or "fail".
-    required: false
-    default: skip
   max-state-tokens:
     description: State token budget override; defaults to the config file or 24000.
     required: false
@@ -48,8 +42,12 @@ inputs:
     required: false
     default: "30000"
 outputs:
+  health:
+    description: Complete, partial, or unavailable review coverage.
+  status:
+    description: Clear, needs-review, incomplete, or unavailable.
   passed:
-    description: '"true", "false", or "skipped".'
+    description: '"true", "false", or "unavailable".'
   failed-gates:
     description: Comma-separated names of the gated rules that failed.
   result:

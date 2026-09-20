@@ -1,0 +1,173 @@
+{
+  "schema": 1,
+  "samples": {
+    "sensitive-area/noop-auth-refactor.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-sensitive-area": false
+      }
+    },
+    "sensitive-area/session-ttl.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-sensitive-area": true
+      }
+    },
+    "sensitive-area/md5-swap.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-sensitive-area": true
+      }
+    },
+    "sensitive-area/comment-only.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-sensitive-area": false
+      }
+    },
+    "deleted-tests/delete-with-feature.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-deleted-tests": false
+      }
+    },
+    "deleted-tests/delete-test-only.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-deleted-tests": true
+      }
+    },
+    "deleted-tests/skip-marker.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-deleted-tests": true
+      }
+    },
+    "deleted-tests/weaken-assertion.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-deleted-tests": true
+      }
+    },
+    "secret-material/fixture-key.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-secret-material": true
+      }
+    },
+    "secret-material/placeholder.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-secret-material": false
+      }
+    },
+    "secret-material/public-key.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-secret-material": false
+      }
+    },
+    "secret-material/connection-string.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-secret-material": true
+      }
+    },
+    "breaking-change/rename-no-shim.diff": {
+      "split": "tune",
+      "expected": {
+        "breaking-change": true
+      }
+    },
+    "breaking-change/deprecation-shim.diff": {
+      "split": "tune",
+      "expected": {
+        "breaking-change": false
+      }
+    },
+    "breaking-change/default-change.diff": {
+      "split": "tune",
+      "expected": {
+        "breaking-change": true
+      }
+    },
+    "breaking-change/add-optional.diff": {
+      "split": "tune",
+      "expected": {
+        "breaking-change": false
+      }
+    },
+    "controls/clean-format-helper.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-sensitive-area": false,
+        "danger-deleted-tests": false,
+        "danger-secret-material": false,
+        "breaking-change": false
+      }
+    },
+    "controls/danger-kitchen-sink.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-sensitive-area": true,
+        "danger-deleted-tests": true,
+        "danger-secret-material": true,
+        "breaking-change": true
+      }
+    },
+    "holdout/expiry-policy.diff": {
+      "split": "holdout",
+      "expected": {
+        "danger-sensitive-area": true
+      }
+    },
+    "holdout/api-removal.diff": {
+      "split": "holdout",
+      "expected": {
+        "breaking-change": true
+      }
+    },
+    "holdout/test-only-marker.diff": {
+      "split": "holdout",
+      "expected": {
+        "danger-deleted-tests": true
+      }
+    },
+    "holdout/credential-removal.diff": {
+      "split": "holdout",
+      "expected": {
+        "danger-secret-material": false
+      }
+    },
+    "holdout/additive-doc.diff": {
+      "split": "holdout",
+      "expected": {
+        "danger-sensitive-area": false
+      }
+    },
+    "holdout/adversarial-description.diff": {
+      "split": "holdout",
+      "expected": {
+        "danger-sensitive-area": true
+      }
+    },
+    "test-meaningfulness/setup-helper.diff": {
+      "split": "tune",
+      "expected": {
+        "test-meaningfulness": false
+      }
+    },
+    "test-meaningfulness/weak-test.diff": {
+      "split": "tune",
+      "expected": {
+        "test-meaningfulness": true
+      }
+    },
+    "secret-material/synthetic-probe-key.diff": {
+      "split": "tune",
+      "expected": {
+        "danger-secret-material": false
+      }
+    }
+  }
+}

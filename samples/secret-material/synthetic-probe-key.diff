@@ -1,0 +1,10 @@
+diff --git a/cipher_probe.go b/cipher_probe.go
+--- /dev/null
++++ b/cipher_probe.go
+@@ -0,0 +1,6 @@
++// Isolated probe-owned data uses a public sequential-byte test vector.
++var probeKey = []byte("0123456789abcdef0123456789abcdef")
++func checkCipherRoundtrip() error {
++    cipher := makeCipher(probeKey)
++    return assertRoundtrip(cipher, []byte("probe-owned content"))
++}

@@ -12,14 +12,17 @@ export class GitHubClient {
     token;
     fetchImpl;
     apiBase;
-    constructor(token, fetchImpl = fetch, apiBase = "https://api.github.com") {
+    commentAuthor;
+    constructor(token, fetchImpl = fetch, apiBase = "https://api.github.com", commentAuthor = "github-actions[bot]") {
         this.token = token;
         this.fetchImpl = fetchImpl;
         this.apiBase = apiBase;
+        this.commentAuthor = commentAuthor;
     }
     async request(path, init = {}) {
         const response = await this.fetchImpl(`${this.apiBase}${path}`, {
             ...init,
+            signal: init.signal ?? AbortSignal.timeout(15_000),
             headers: {
                 Accept: "application/vnd.github+json",
                 Authorization: `Bearer ${this.token}`,
@@ -63,16 +66,26 @@ export class GitHubClient {
     }
     async listChangedFiles(owner, repo, number) {
         const files = [];
-        for (let page = 1; page <= 10; page += 1) {
+        for (let page = 1; page <= 30; page += 1) {
             const response = await this.request(`/repos/${owner}/${repo}/pulls/${number}/files?per_page=100&page=${page}`);
             const batch = (await response.json());
             for (const file of batch) {
+                const lines = file.patch?.split("\n");
+                const incomplete = lines &&
+                    (lines.filter((line) => line.startsWith("+")).length !==
+                        file.additions ||
+                        lines.filter((line) => line.startsWith("-")).length !==
+                            file.deletions);
                 files.push({
                     path: file.filename,
                     status: file.status,
                     additions: file.additions,
                     deletions: file.deletions,
                     patch: file.patch ?? null,
+                    previousPath: file.previous_filename,
+                    patchWarning: incomplete
+                        ? "GitHub patch line counts do not match the declared change; the patch may be incomplete"
+                        : undefined,
                 });
             }
             if (batch.length < 100)
@@ -83,7 +96,7 @@ export class GitHubClient {
     /** Read a file at an exact ref; a missing file returns null. */
     async getFileAtRef(owner, repo, path, ref) {
         try {
-            const response = await this.request(`/repos/${owner}/${repo}/contents/${encodeURI(path)}?ref=${encodeURIComponent(ref)}`, { headers: { Accept: "application/vnd.github.raw+json" } });
+            const response = await this.request(`/repos/${owner}/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`, { headers: { Accept: "application/vnd.github.raw+json" } });
             return await response.text();
         }
         catch (error) {
@@ -94,12 +107,17 @@ export class GitHubClient {
     }
     /** Find the sticky comment and its parsed previous run. */
     async findPreviousRun(owner, repo, number) {
-        for (let page = 1; page <= 5; page += 1) {
+        for (let page = 1; page <= 30; page += 1) {
             const response = await this.request(`/repos/${owner}/${repo}/issues/${number}/comments?per_page=100&page=${page}`);
             const comments = (await response.json());
             for (const comment of comments) {
-                if (comment.body?.includes(COMMENT_MARKER)) {
-                    return { id: comment.id, previous: parsePreviousOutcome(comment.body) };
+                if (comment.user?.login === this.commentAuthor &&
+                    comment.user.type === "Bot" &&
+                    comment.body?.startsWith(COMMENT_MARKER)) {
+                    return {
+                        id: comment.id,
+                        previous: parsePreviousOutcome(comment.body),
+                    };
                 }
             }
             if (comments.length < 100)

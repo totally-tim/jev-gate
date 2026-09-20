@@ -5,8 +5,11 @@ honest. They are engineered to sit near the decision boundary, because natural p
 are mostly clean and random sampling never populates the band where a threshold actually
 decides.
 
-Each `.diff` is a unified diff that `calibrate` reads directly. The expected direction below
-is for the person picking thresholds; the CLI does not enforce it.
+Each `.diff` is a unified diff that `calibrate` reads directly. The expected directions in `labels.json` are enforced by the evaluation runner. The table
+below documents the original tuning examples. New holdout examples live under `holdout/`.
+Live dogfooding added tuning cases for a synthetic probe key, setup-only test changes, and
+a weak test. The test-quality rule is now disabled by default because it produced false
+positives on real setup helpers. Its tuning labels enter metrics only when explicitly enabled.
 
 | Sample | Expected | Rule it probes |
 | --- | --- | --- |
@@ -35,19 +38,27 @@ From a checkout, after `npm run build` and with one provider key set:
 
 ```sh
 # Batched, five runs per sample, to see run-to-run spread
-node dist/bundle/cli.cjs calibrate --dir samples --repeat 5
+node dist/bundle/cli.cjs calibrate --dir samples --split tune --repeat 5
 
 # One question per request, to check whether answers lean on each other
 node dist/bundle/cli.cjs calibrate --dir samples --solo --json > /tmp/solo.json
 node dist/bundle/cli.cjs calibrate --dir samples --json > /tmp/batched.json
 ```
 
-Each JSON record carries `rulesHash`, the fingerprint of the enabled rule wording. A record
-is comparable only to runs with the same hash. Re-run the suite after every rule wording
+Each report carries model, policy, state-builder, sample, and rule identities. The rule
+fingerprint includes rubric criteria. Compare runs only when the relevant identities match. Re-run the suite after every rule wording
 change and compare probabilities; a move of more than 10 points on a fixed sample means the
 wording moved the boundary.
 
-## First measurements, 2026-09-19, jev-1.13.0, rules `f916bd551e8d`
+## Schema 2 measurements, 2026-09-20
+
+The [recorded OpenRouter run](results/2026-09-20-openrouter-jev-1.13-20260917.json) used
+`typesafe/jev-1.13-20260917`, the default policy, and three repetitions. All 93 labels for
+enabled rules matched their expected direction across tuning and holdout examples. Two
+experimental-only tuning examples are excluded from default-policy metrics. No comment-drift
+labels have been established. Repeated synthetic examples do not measure production accuracy.
+
+## Historical schema 1 measurements, 2026-09-19, jev-1.13.0, rules `f916bd551e8d`
 
 - Five runs per sample, batched: the largest run-to-run spread on any rule was 10 points
   (`breaking-change` on `sensitive-area/md5-swap.diff`); most rules stayed under 6 points.
@@ -64,7 +75,7 @@ wording moved the boundary.
   (`danger-deleted-tests` on the kitchen-sink control) and the rest by less. No batch effect
   was detectable at this resolution.
 
-## Second measurements, 2026-09-19, jev-1.13.0, rules `ecc13761bf17`
+## Historical schema 1 follow-up measurements, 2026-09-19, jev-1.13.0, rules `ecc13761bf17`
 
 Recorded after acting on the first review: `danger-sensitive-area` moved to a 0.60 gate,
 `test-meaningfulness` was reworded around its no-tests clause, and gated rules answering
@@ -94,6 +105,10 @@ originally carried Stripe-shaped `sk_live_` values, which GitHub push protection
 even in a fixture. Both now use `acme_live_` strings. Re-measured over three runs at rules
 `ecc13761bf17`: `fixture-key.diff` scores 88.3 on `danger-secret-material` and
 `danger-kitchen-sink.diff` scores 96.7 there, so the fixtures still separate above the gate.
+
+The historical numbers above were produced before candidate review, redaction, and schema 2.
+They do not establish accuracy for the current implementation. Holdout axes remain unlabeled
+where no independent judgment has been recorded; those axes do not contribute to metrics.
 
 ## Growing the suite
 

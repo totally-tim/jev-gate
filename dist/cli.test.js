@@ -63,5 +63,5 @@ test("the bundled CLI runs when invoked through a bin symlink", () => {
     const result = spawnSync(process.execPath, [link], { encoding: "utf8" });
     rmSync(dir, { recursive: true, force: true });
     assert.equal(result.status, 0);
-    assert.match(result.stdout, /jev-gate: Jev-powered PR review rules/);
+    assert.match(result.stdout, /jev-gate: a review companion/);
 });

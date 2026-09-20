@@ -45,7 +45,13 @@ test("openrouter does not retry an authentication failure", async () => {
         calls += 1;
         return response(401, { error: { message: "invalid key" } });
     };
-    await assert.rejects(runJevReview({ ...request, fetchImpl, retry: { maxRetries: 2, backoffInitialMs: 0 } }), (error) => error instanceof JevProviderError && error.status === 401 && /invalid key/.test(error.message));
+    await assert.rejects(runJevReview({
+        ...request,
+        fetchImpl,
+        retry: { maxRetries: 2, backoffInitialMs: 0 },
+    }), (error) => error instanceof JevProviderError &&
+        error.status === 401 &&
+        /invalid key/.test(error.message));
     assert.equal(calls, 1);
 });
 test("openrouter tolerates an absent usage block", async () => {

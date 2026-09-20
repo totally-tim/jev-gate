@@ -25,7 +25,8 @@ test("openrouter retries retryable failures and parses the answers", async () =>
   let calls = 0;
   const fetchImpl = async (): Promise<Response> => {
     calls += 1;
-    if (calls === 1) return response(500, { error: { message: "upstream failed" } });
+    if (calls === 1)
+      return response(500, { error: { message: "upstream failed" } });
     return response(200, {
       model: "typesafe/jev-1.13",
       answers: { urgent: { type: "noul", noul: 0.9 } },
@@ -50,9 +51,15 @@ test("openrouter does not retry an authentication failure", async () => {
     return response(401, { error: { message: "invalid key" } });
   };
   await assert.rejects(
-    runJevReview({ ...request, fetchImpl, retry: { maxRetries: 2, backoffInitialMs: 0 } }),
+    runJevReview({
+      ...request,
+      fetchImpl,
+      retry: { maxRetries: 2, backoffInitialMs: 0 },
+    }),
     (error: unknown) =>
-      error instanceof JevProviderError && error.status === 401 && /invalid key/.test(error.message),
+      error instanceof JevProviderError &&
+      error.status === 401 &&
+      /invalid key/.test(error.message),
   );
   assert.equal(calls, 1);
 });

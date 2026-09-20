@@ -1,88 +1,41 @@
-# Rules
+# Review rules
 
-A rule is one question about the diff with a threshold. Rules live in
-[`src/rules.ts`](../src/rules.ts) and the whole set is sent in one batched Jev request.
+Each rule asks a narrow question about a candidate diff. The engine supplies related
+implementation/test changes when available. The model treats PR descriptions, comments,
+and source strings as data. Adversarial content still needs evaluation; typed answers do
+not guarantee correct judgments.
 
-## The concern convention
+A Noul answer is a binary probability. A Score answer is an expected rubric level. The
+engine normalizes scores only for threshold comparisons and retains their original units
+for display. Missing, out-of-range, or incorrectly typed answers make coverage incomplete.
 
-Every rule is phrased so that a higher probability means a worse diff. Noul (Jev's yes/no
-question type) returns the probability of yes. Score (Jev's ordered rubric type) returns an
-expected level, which the code normalizes by dividing by the highest level index, so a level-2
-answer on a three-level rubric becomes 1.0. High is always the concern; there is no "goodness"
-polarity to remember.
+`danger-sensitive-area` requests focused review and is not a default blocking gate.
+`test-meaningfulness` is experimental and disabled because live evaluation produced
+false positives on setup helpers. Opt-in scoring is restricted to recognized test-code paths.
+`change-hygiene` is experimental and disabled because candidate-level review cannot establish
+whole-change coherence. The default mode is advisory. Required mode applies enabled gates
+and rejects incomplete review.
 
-This convention lets the gate and the comment treat every rule identically:
+To change a rule:
 
-- A probability at or above the threshold with `gate: true` fails the check.
-- The same with `gate: false` shows `warn` in the comment.
-- Below the threshold the rule shows `ok`.
+1. Define an observable concern, its exclusions, and a useful verification step.
+2. Add tuning cases with labels in `samples/labels.json`.
+3. Run local checks and evaluate the tuning split with a pinned model.
+4. Evaluate untouched holdout cases. Retain raw results and inspect false positives and misses.
+5. Update documentation and the model/rule identity used in any deployment.
 
-## Writing a rule
+The rule fingerprint includes names, question kinds, instructions, and rubric criteria.
+Policy identity also includes thresholds, gates, model, provider, and input-building version.
+Old schema 1 comments and ledgers are not reused as schema 2 assessments.
 
-1. Write the instruction as a statement of the concern, with the boundary spelled out in
-   both directions. `danger-sensitive-area` does this: "not merely when the file sits near
-   such code" removes the most common false positive, and "tests and documentation alone
-   are not sensitive" removes the second.
-2. Prefer one narrow judgment over a broad one. The Jev playground's calibration bench (a
-   harness that measures Jev's answers against labeled data) found that a boundary-specific
-   `not_for` clause moved errors from 24 to 6 on a 300-row task, but also moved 4 errors the
-   other way; narrow wording sharpens, it does not remove.
-3. Decide the kind. Noul when the answer is genuinely binary. Score when you want the
-   model to express a degree, and write the rubric so every level is observable in the
-   diff, not in the reviewer's taste.
-4. Set a default threshold from data, not from intuition. See below.
-5. Add the rule to `src/rules.ts`, run `npm test`, and calibrate it on sample diffs before
-   making it a gate.
+Optional repeated observations retain both values. Their mean is a threshold input; repeated
+answers from the same model do not supply independent verification. Errors in either
+observation remain visible.
 
-## Thresholds
+Local acceptance records belong to the exact finding identity. GitHub loads configuration
+from the PR base commit. A policy edit inside a PR cannot override that PR's review. Use the
+repository's existing merge-approval process for an authorized exception.
 
-A threshold is a decision rule, so it inherits the cost of being wrong. Sensitive gates
-should fail loudly and rarely: a false "contains secrets" verdict costs a look from a
-human, a false negative costs a leaked key. Advisory rules can sit lower because a warning
-does not block anything.
-
-Run-to-run noise made verdicts near the line a coin flip (up to 10 points of spread on one
-boundary sample in the first suite run), so a gated rule answering within `borderlineMargin`
-of its threshold is asked again and the two asks are averaged before the verdict; set
-`borderlineMargin: 0` to turn that off. The margin treats the symptom at the decision point.
-The threshold still has to separate the groups you care about; averaging does not fix a rule
-that answers 50/50 on both.
-
-The built-in defaults sit inside the 0.2 to 0.8 band that the bench flags as thinly
-populated. They separate obvious cases, but treat them as provisional until you calibrate
-them on your own samples. For the three-level Score rubrics, 0.70 fires at an expected level
-of 1.4 or higher and 0.60 at 1.2 or higher, so argue about those thresholds in levels when
-you change a rubric.
-
-Practical calibration, from a checkout after `npm run build`:
-
-```sh
-# Sample 20-50 diffs that you would and would not have blocked, name them meaningfully.
-node dist/bundle/cli.cjs calibrate --dir samples/ --json > calibration.json
-```
-
-Read the JSON as a table of per-rule probabilities, then pick the threshold where the two
-groups separate. If they do not separate, tighten the rule wording before lowering the
-value to make it look calibrated.
-
-## What is verified and what is not
-
-The calibration bench in the Jev playground measured how well Jev's yes/no answers matched
-outcomes on three public tasks (97.0%, 94.0%, and 84.3% accuracy, with expected calibration
-error between 3.3% and 11.8% at n = 300) and found that fewer than 15% of answers land between
-0.2 and 0.8. Those numbers come from generic judgments on public datasets, not from these
-review rules, and they measure the model the vendor trained for calibration rather than a
-guarantee per question.
-
-What that means here: treat a gated rule as a fast, consistent first pass that a human can
-verify in thirty seconds, not as an authorization boundary. The gate fails the check, and a
-maintainer overrides by merging anyway or by raising the threshold in the same PR that
-provoked it.
-
-## Roadmap
-
-- Incremental review: send only the diff since the last reviewed SHA and accumulate
-  findings in the sticky comment.
-- Per-rule check runs so branch protection can require one rule and not another.
-- Rule packs per ecosystem (for example migration safety for SQL repositories).
-- Publish the CLI to npm so calibration runs without a checkout.
+Before adding rule packs or incremental-only review, verify finding precision, review
+coverage, recipient delivery, and resolution behavior on real changes. An assessment cache
+must include relevant content, policy, context, and model identity.

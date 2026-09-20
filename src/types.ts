@@ -1,4 +1,4 @@
-/** Everything the review needs to know about one pull request. */
+/** Repository metadata for an immutable review input. */
 export interface PullRequestContext {
   owner: string;
   repo: string;
@@ -15,125 +15,157 @@ export interface PullRequestContext {
   commits: number;
   htmlUrl: string;
 }
-
-/** One changed file, with its unified diff when GitHub provides one. */
 export interface DiffFile {
   path: string;
   status: string;
   additions: number;
   deletions: number;
   patch: string | null;
+  previousPath?: string;
+  patchWarning?: string;
 }
-
 export type RuleKind = "noul" | "score";
-
-/** A decisions provider that serves Jev models. */
 export type Provider = "typesafe" | "openrouter";
-
-/** A rule as authored in this repository: the question and how it is read. */
+export type ReviewMode = "advisory" | "required";
 export interface RuleDefinition {
   name: string;
-  /** Short heading used in the comment and documentation. */
   title: string;
   kind: RuleKind;
-  /** The question text sent to Jev. Written as a statement of the concern. */
   instructions: string;
-  /** For score rules: ordered rubric, least concerning level first. */
   rubric?: readonly string[];
-  /** Default gating behavior; a config file can override it. */
   gate: boolean;
-  /** Default threshold on the concern probability, 0..1. */
   threshold: number;
+  verification: string;
+  enabled?: boolean;
 }
-
-/** Rule overrides as they appear in `.jev-gate.yml`. */
 export interface RuleConfigOverride {
   enabled?: boolean;
   gate?: boolean;
   threshold?: number;
 }
-
-/** The parsed shape of `.jev-gate.yml`. */
 export interface ConfigDocument {
   provider?: Provider;
   model?: string;
+  mode?: ReviewMode;
   maxStateTokens?: number;
+  maxRequests?: number;
   borderlineMargin?: number;
   ignore?: string[];
   comment?: boolean;
   rules?: Record<string, RuleConfigOverride>;
   openrouter?: { referer?: string; title?: string };
 }
-
-/** A rule with its config overrides applied. */
 export interface ResolvedRule extends RuleDefinition {
   enabled: boolean;
 }
-
 export interface ResolvedConfig {
   provider: Provider;
   model: string;
+  mode: ReviewMode;
   maxStateTokens: number;
-  /** Distance from the threshold inside which a gated rule gets a second ask, 0..0.3. */
+  maxRequests: number;
   borderlineMargin: number;
   ignore: readonly string[];
   comment: boolean;
   rules: readonly ResolvedRule[];
-  /** Ranking headers OpenRouter accepts; other providers ignore them. */
   openrouter: { referer?: string; title?: string };
 }
-
-/** One rule's answer, reduced to the numbers the comment shows. */
+export interface CoverageEntry {
+  path: string;
+  status: "reviewed" | "excluded" | "partial" | "unavailable";
+  reason: string | null;
+  reviewedChunks: number;
+  totalChunks: number;
+}
+export interface Coverage {
+  files: CoverageEntry[];
+  warnings: string[];
+}
+export interface Candidate {
+  id: string;
+  path: string;
+  startLine: number | null;
+  endLine: number | null;
+  side: "old" | "new";
+  patch: string;
+  status: string;
+}
 export interface RuleDecision {
   name: string;
   title: string;
   kind: RuleKind;
   gate: boolean;
   threshold: number;
-  /** Concern probability, 0..1, or null when the rule could not be graded. */
+  /** Normalized value used for thresholds; a score value is not a probability. */
+  value: number | null;
   probability: number | null;
-  /** Score rules: the expected level as Jev returned it, before normalization. */
   level?: number;
-  /** Score rules: number of rubric levels. */
   levels?: number;
-  /** Reported confidence for score rules. */
   confidence?: number;
-  /**
-   * Gated rules that landed within `borderlineMargin` of the threshold are asked twice.
-   * This carries the individual asks, first first; `probability` is their mean.
-   */
   samples?: number[];
-  /** Probability at or above the threshold. */
   exceeded: boolean;
-  /** Exceeded and gating; this is what fails the check. */
   failed: boolean;
-  /** Why the rule could not be graded, or null when it was. */
   error: string | null;
+  candidate: Omit<Candidate, "patch">;
 }
-
-/** The complete result of one review run, and the payload of the hidden data block. */
-export interface ReviewOutcome {
+export interface Finding {
+  id: string;
+  rule: string;
+  title: string;
+  category: "review-request" | "potential-issue" | "secret";
+  path: string;
+  startLine: number | null;
+  endLine: number | null;
+  side: "old" | "new";
+  evidence: string;
+  verification: string;
+  value: number;
+  kind: RuleKind;
+  source: "local" | "jev";
+  status: "open" | "accepted" | "fixed" | "dismissed";
+  disposition?: { reason: string; at: string };
+}
+export interface ReviewSnapshot {
   schema: 1;
+  id: string;
+  contentHash: string;
+  policyHash: string;
+  feedbackHash: string;
+  configSource: string;
+  pr: PullRequestContext;
+  files: DiffFile[];
+  warnings: string[];
+  config: ResolvedConfig;
+}
+export interface ReviewOutcome {
+  schema: 2;
+  snapshotId: string;
+  contentHash: string;
+  policyHash: string;
+  configSource: string;
   headSha: string;
   baseSha: string;
   prNumber: number;
+  provider: Provider;
   model: string;
-  /** SHA-256 prefix of the enabled rules' wording, so records stay comparable across edits. */
   rulesHash: string;
+  stateVersion: string;
+  mode: ReviewMode;
   latencyMs: number;
   inputTokens: number;
   outputTokens: number;
   costUSD: number;
   ranAt: string;
-  truncated: boolean;
+  health: "complete" | "partial" | "unavailable";
+  status: "clear" | "needs-review" | "incomplete" | "unavailable";
+  coverage: Coverage;
+  findings: Finding[];
   decisions: RuleDecision[];
   passed: boolean;
   failedGates: string[];
-  /** Gated rules that could not be graded; the check fails while this is non-empty. */
   erroredGates: string[];
+  errors: string[];
 }
-
-/** The state object sent to Jev. */
 export interface ReviewState {
   pr: {
     title: string;
@@ -142,18 +174,12 @@ export interface ReviewState {
     base: string;
     head: string;
   };
-  totals: {
-    files: number;
-    additions: number;
-    deletions: number;
-    commits: number;
-  };
-  files: Array<{
+  files: Array<{ path: string; status: string; patch: string }>;
+  scope: string;
+  relatedChanges?: Array<{
     path: string;
     status: string;
-    additions: number;
-    deletions: number;
-    patch?: string;
+    patch: string;
+    clipped: boolean;
   }>;
-  truncated: boolean;
 }

@@ -10,11 +10,16 @@ const shared = {
   format: "cjs",
   outExtension: { ".js": ".cjs" },
   sourcemap: false,
+  define: { "import.meta.url": "undefined" },
   logLevel: "info",
   // `yaml` and the TypeSafe SDK are bundled intentionally; nothing is external.
 };
 
-await build({ entryPoints: { action: "src/action.ts" }, outdir: "dist/bundle", ...shared });
+await build({
+  entryPoints: { action: "src/action.ts" },
+  outdir: "dist/bundle",
+  ...shared,
+});
 
 // The CLI installs as a bin (`npm install -g github:<owner>/jev-gate`), so it needs a
 // shebang and an executable bit; the action bundle is invoked by the runner and does not.

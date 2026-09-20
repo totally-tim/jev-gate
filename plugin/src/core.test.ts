@@ -1,160 +1,256 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deliveryLine, formatBriefing, hashDiff, lastLedgerHash, ledgerLine, parseOutcome, resolveOptions } from "./core.js";
-
-const DIRECTORY = "/work/tree";
-
-function sampleOutcome() {
-  const outcome = parseOutcome(
-    JSON.stringify({
-      model: "jev-test",
-      rulesHash: "abc123abc123",
-      headSha: "local-head",
-      inputTokens: 2106,
-      costUSD: 0.00009,
-      failedGates: ["danger-sensitive-area"],
-      erroredGates: [],
-      decisions: [
-        {
-          name: "danger-sensitive-area",
-          gate: true,
-          threshold: 0.6,
-          probability: 0.98,
-          exceeded: true,
-          failed: true,
-          error: null,
-        },
-        {
-          name: "breaking-change",
-          gate: true,
-          threshold: 0.6,
-          probability: 0.51,
-          exceeded: false,
-          failed: false,
-          error: null,
-          samples: [0.52, 0.5],
-        },
-        {
-          name: "test-meaningfulness",
-          gate: false,
-          threshold: 0.7,
-          probability: 0.9,
-          exceeded: true,
-          failed: false,
-          error: null,
-        },
-      ],
-    }),
-  );
-  assert.ok(outcome !== null);
-  return outcome;
+import {
+  resolveOptions,
+  parseOutcome,
+  formatBriefing,
+  type OutcomeView,
+} from "./core.js";
+import { ReviewMonitor, type SnapshotView } from "./monitor.js";
+const id = (s: string) => s.repeat(64);
+function outcome(
+  snapshotId = id("a"),
+  finding = true,
+  health: OutcomeView["health"] = "complete",
+): OutcomeView {
+  return {
+    schema: 2,
+    snapshotId,
+    health,
+    status: finding ? "needs-review" : "clear",
+    policyHash: id("b"),
+    model: "mock",
+    errors: health === "complete" ? [] : ["provider unavailable"],
+    findings: finding
+      ? [
+          {
+            id: "1".repeat(24),
+            rule: "danger-sensitive-area",
+            title: "Sensitive change",
+            path: "auth.ts",
+            startLine: 1,
+            status: "open",
+            verification:
+              "Check the session invariant; an intentional change can be correct.",
+            category: "review-request",
+          },
+        ]
+      : [],
+  };
 }
-
-test("options default to a two-minute ledger watch with the CLI on PATH", () => {
-  const options = resolveOptions(undefined, { directory: DIRECTORY });
-  assert.equal(options.cli, "jev-gate");
-  assert.deepEqual(options.cliArgs, []);
-  assert.equal(options.intervalMs, 120_000);
-  assert.equal(options.inject, false);
-  assert.equal(options.ledgerPath, `${DIRECTORY}/.jev-gate/ledger.jsonl`);
-  assert.equal(options.provider, undefined);
-  assert.equal(options.apiKey, undefined);
-});
-
-test("options accept a command string, a relative ledger, and provider settings", () => {
-  const options = resolveOptions(
-    {
-      cli: "node /opt/jev-gate/dist/bundle/cli.cjs",
-      intervalMs: 5_000,
-      inject: true,
-      ledger: "logs/jev.jsonl",
-      provider: "openrouter",
-      model: "typesafe/jev-1.13",
-      apiKey: "test-key",
-      base: "origin/main",
-      timeoutMs: 30_000,
+function fixture() {
+  let current = id("a"),
+    bad = true,
+    health: OutcomeView["health"] = "complete",
+    now = 0,
+    calls = 0;
+  const ledger: string[] = [];
+  const io = {
+    collect: async (): Promise<SnapshotView> => ({
+      id: current,
+      text: current,
+      provider: "typesafe",
+    }),
+    review: async (s: SnapshotView) => {
+      calls++;
+      return outcome(s.id, bad, health);
     },
-    { directory: DIRECTORY },
+    read: () => ledger.join("\n"),
+    append: (r: unknown) => {
+      ledger.push(JSON.stringify(r));
+    },
+    now: () => now,
+    backoffMs: 100,
+  };
+  return {
+    io,
+    ledger,
+    set: (s: string, b: boolean, h: OutcomeView["health"] = "complete") => {
+      current = id(s);
+      bad = b;
+      health = h;
+    },
+    advance: () => {
+      now += 101;
+    },
+    calls: () => calls,
+  };
+}
+test("options accept argv arrays with paths containing spaces and reject invalid options", () => {
+  const o = resolveOptions(
+    { cli: ["node", "/a path/cli.cjs"], policySource: "base" },
+    { directory: "/repo" },
   );
-  assert.equal(options.cli, "node");
-  assert.deepEqual(options.cliArgs, ["/opt/jev-gate/dist/bundle/cli.cjs"]);
-  assert.equal(options.intervalMs, 5_000);
-  assert.equal(options.inject, true);
-  assert.equal(options.ledgerPath, `${DIRECTORY}/logs/jev.jsonl`);
-  assert.equal(options.provider, "openrouter");
-  assert.equal(options.base, "origin/main");
-
-  const absolute = resolveOptions({ ledger: "/var/tmp/jev.jsonl" }, { directory: DIRECTORY });
-  assert.equal(absolute.ledgerPath, "/var/tmp/jev.jsonl");
+  assert.deepEqual(o.cliArgs, ["/a path/cli.cjs"]);
+  assert.equal(o.inject, false);
+  assert.throws(() => resolveOptions({ timeoutMs: 0 }, { directory: "/repo" }));
+  assert.throws(() => resolveOptions({ wat: true }, { directory: "/repo" }));
+  assert.throws(() =>
+    resolveOptions({ cli: 'node "unfinished' }, { directory: "/repo" }),
+  );
+  assert.throws(() =>
+    resolveOptions({ ledger: "src/ledger.jsonl" }, { directory: "/repo" }),
+  );
+  assert.throws(() =>
+    resolveOptions(
+      { ledger: ".jev-gate/dispositions.jsonl" },
+      { directory: "/repo" },
+    ),
+  );
 });
 
-test("malformed options fail loudly instead of silently disabling the watch", () => {
-  assert.throws(() => resolveOptions({ intervalMs: 10 }, { directory: DIRECTORY }), /intervalMs/);
-  assert.throws(() => resolveOptions({ intervalMs: "5000" }, { directory: DIRECTORY }), /intervalMs/);
-  assert.throws(() => resolveOptions({ inject: "yes" }, { directory: DIRECTORY }), /inject/);
-  assert.throws(() => resolveOptions({ provider: "gemini" }, { directory: DIRECTORY }), /provider/);
-  assert.throws(() => resolveOptions({ cli: "  " }, { directory: DIRECTORY }), /cli/);
-  assert.throws(() => resolveOptions({ watch: true }, { directory: DIRECTORY }), /not a known setting/);
+test("a transport failure is persisted, delivered once, and retried after backoff", async () => {
+  const f = fixture();
+  let calls = 0;
+  f.io.review = async () => {
+    calls++;
+    throw new Error("CLI timed out");
+  };
+  const m = new ReviewMonitor(f.io);
+  const delivered: string[] = [];
+  await m.deliver("s", (text) => delivered.push(text));
+  await m.deliver("s", (text) => delivered.push(text));
+  assert.equal(calls, 1);
+  assert.equal(delivered.length, 1);
+  assert.match(delivered[0]!, /unavailable/);
+  f.advance();
+  await m.poll();
+  assert.equal(calls, 2);
+  await m.dispose();
 });
 
-test("diff hashes are short, stable, and content-addressed", () => {
-  const a = hashDiff("diff --git a/x b/x\n+one\n");
-  assert.equal(a.length, 12);
-  assert.equal(a, hashDiff("diff --git a/x b/x\n+one\n"));
-  assert.notEqual(a, hashDiff("diff --git a/x b/x\n+two\n"));
+test("briefing limits never acknowledge findings the recipient did not receive", async () => {
+  const f = fixture();
+  f.io.review = async (s) => {
+    const o = outcome(s.id);
+    o.findings = Array.from({ length: 12 }, (_, i) => ({
+      ...o.findings[0]!,
+      id: i.toString(16).padStart(24, "0"),
+    }));
+    return o;
+  };
+  const m = new ReviewMonitor(f.io);
+  const messages: string[] = [];
+  await m.deliver("s", (text) => messages.push(text));
+  await m.deliver("s", (text) => messages.push(text));
+  await m.deliver("s", (text) => messages.push(text));
+  assert.equal(messages.length, 2);
+  for (let i = 0; i < 12; i++)
+    assert.ok(messages.join("\n").includes(i.toString(16).padStart(24, "0")));
+  await m.dispose();
 });
-
-test("outcome parsing keeps the decisions and drops unrecognizable shapes", () => {
-  const outcome = sampleOutcome();
-  assert.equal(outcome.model, "jev-test");
-  assert.equal(outcome.decisions.length, 3);
-  assert.deepEqual(outcome.decisions[1]?.samples, [0.52, 0.5]);
-  assert.deepEqual(outcome.failedGates, ["danger-sensitive-area"]);
-
-  assert.equal(parseOutcome("not json"), null);
-  assert.equal(parseOutcome("{}"), null);
-  assert.equal(parseOutcome('{"decisions":[],"failedGates":[]}')?.decisions.length, 0);
+test("only schema 2 complete result shapes are accepted", () => {
+  assert.ok(parseOutcome(JSON.stringify(outcome())));
+  assert.equal(
+    parseOutcome('{"schema":1,"decisions":[],"failedGates":[]}'),
+    null,
+  );
+  assert.equal(
+    parseOutcome(JSON.stringify({ ...outcome(), findings: [{}] })),
+    null,
+  );
+  assert.ok(formatBriefing(outcome())?.includes('"auth.ts":1'));
+  assert.ok(
+    formatBriefing(outcome(id("a"), false, "unavailable"))?.includes(
+      "unavailable",
+    ),
+  );
 });
-
-test("the briefing names the diff, the numbers, and the fallibility; it skips advisory-only runs", () => {
-  const outcome = sampleOutcome();
-  const briefing = formatBriefing(outcome, "abc123abc123");
-  assert.ok(briefing !== null);
-  assert.match(briefing, /diff abc123abc123/);
-  assert.match(briefing, /danger-sensitive-area: 98% concern against a 60% threshold/);
-  assert.match(briefing, /Do not edit code just to move the number/);
-  assert.doesNotMatch(briefing, /test-meaningfulness/);
-
-  const clean = { ...outcome, decisions: outcome.decisions.filter((decision) => !decision.failed) };
-  assert.equal(formatBriefing(clean, "abc123abc123"), null);
+test("a newer clean review invalidates a queued warning", async () => {
+  const f = fixture(),
+    m = new ReviewMonitor(f.io);
+  await m.poll();
+  f.set("b", false);
+  await m.poll();
+  const sent: string[] = [];
+  await m.deliver("session", (s) => sent.push(s));
+  assert.deepEqual(sent, []);
+  await m.dispose();
 });
-
-test("a ledger line round-trips with the hash, verdicts, and injection flag", () => {
-  const outcome = sampleOutcome();
-  const line = ledgerLine(outcome, "abc123abc123", { injected: true });
-  assert.equal(line.endsWith("\n"), true);
-  const record = JSON.parse(line) as Record<string, unknown>;
-  assert.equal(record["diffHash"], "abc123abc123");
-  assert.equal(record["injected"], true);
-  assert.deepEqual(record["failedGates"], ["danger-sensitive-area"]);
-  assert.equal((record["decisions"] as unknown[]).length, 3);
-  assert.equal(typeof record["ranAt"], "string");
+test("restart restores an undelivered assessment and deduplicates by recipient", async () => {
+  const f = fixture(),
+    m = new ReviewMonitor(f.io);
+  await m.poll();
+  await m.dispose();
+  const restarted = new ReviewMonitor(f.io),
+    sent: string[] = [];
+  await restarted.deliver("s1", (s) => sent.push(s));
+  await restarted.deliver("s1", (s) => sent.push(s));
+  await restarted.deliver("s2", (s) => sent.push(s));
+  assert.equal(sent.length, 2);
+  assert.equal(f.calls(), 1);
+  await restarted.dispose();
+  const again = new ReviewMonitor(f.io);
+  await again.deliver("s1", (s) => sent.push(s));
+  assert.equal(sent.length, 2);
+  await again.dispose();
 });
-
-test("the last reviewed hash comes from the ledger tail only", () => {
-  assert.equal(lastLedgerHash(""), null);
-  assert.equal(lastLedgerHash("not json\n"), null);
-  assert.equal(lastLedgerHash('{"diffHash":"one"}\n'), "one");
-  assert.equal(lastLedgerHash('{"diffHash":"one"}\n{"diffHash":"two"}\n'), "two");
-  assert.equal(lastLedgerHash('{"diffHash":"one"}\n{"broken":'), "one");
-  // A delivery record carries the hash too, so cross-session dedupe still sees it.
-  assert.equal(lastLedgerHash(`{"diffHash":"one"}\n${deliveryLine("two", { agent: "build", messages: 2 })}`), "two");
+test("incomplete assessments are briefed and retried after backoff", async () => {
+  const f = fixture();
+  f.set("a", false, "unavailable");
+  const m = new ReviewMonitor(f.io),
+    sent: string[] = [];
+  await m.deliver("s", (s) => sent.push(s));
+  await m.poll();
+  assert.equal(f.calls(), 1);
+  assert.equal(sent.length, 1);
+  f.advance();
+  await m.poll();
+  assert.equal(f.calls(), 2);
+  await m.deliver("s", (s) => sent.push(s));
+  assert.equal(sent.length, 1);
+  await m.dispose();
 });
-
-test("a delivery line records the hash and the delivered flag", () => {
-  const record = JSON.parse(deliveryLine("abc123abc123", { agent: "build", messages: 4 })) as Record<string, unknown>;
-  assert.equal(record["diffHash"], "abc123abc123");
-  assert.equal(record["delivered"], true);
-  assert.equal(record["agent"], "build");
-  assert.equal(typeof record["ranAt"], "string");
+test("unchanged findings are not re-injected after unrelated snapshot changes", async () => {
+  const f = fixture(),
+    m = new ReviewMonitor(f.io),
+    sent: string[] = [];
+  await m.deliver("s", (s) => sent.push(s));
+  f.set("b", true);
+  await m.deliver("s", (s) => sent.push(s));
+  assert.equal(sent.length, 1);
+  await m.dispose();
+});
+test("a change while the provider runs discards that assessment", async () => {
+  const f = fixture();
+  const io = {
+    ...f.io,
+    review: async (s: SnapshotView) => {
+      f.set("b", false);
+      return outcome(s.id);
+    },
+  };
+  const m = new ReviewMonitor(io);
+  await m.poll();
+  assert.equal(f.ledger.length, 0);
+  await m.dispose();
+});
+test("concurrent hooks deliver once and disposal cancels active work before persistence", async () => {
+  const f = fixture(),
+    m = new ReviewMonitor(f.io),
+    sent: string[] = [];
+  await Promise.all([
+    m.deliver("s", (s) => sent.push(s)),
+    m.deliver("s", (s) => sent.push(s)),
+  ]);
+  assert.equal(sent.length, 1);
+  await m.dispose();
+  let started!: () => void;
+  const ready = new Promise<void>((r) => (started = r));
+  const g = fixture();
+  const pending = new ReviewMonitor({
+    ...g.io,
+    review: async (s, signal) => {
+      started();
+      await new Promise<void>((r) =>
+        signal.addEventListener("abort", () => r(), { once: true }),
+      );
+      return outcome(s.id);
+    },
+  });
+  const poll = pending.poll();
+  await ready;
+  await pending.dispose();
+  await poll;
+  assert.equal(g.ledger.length, 0);
 });

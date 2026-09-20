@@ -1,0 +1,13 @@
+diff --git a/store_test.go b/store_test.go
+--- a/store_test.go
++++ b/store_test.go
+@@ -1,3 +1,9 @@ func seedWorkspace(t *testing.T, db *sql.DB) string {
+     t.Helper()
++    _, err := db.Exec("INSERT INTO workspaces (id, state) VALUES (?, ?)", "workspace-1", "active")
++    if err != nil {
++        t.Fatal(err)
++    }
++    // Return fixture identity to the behavioral tests that use this helper.
++    workspaceID := "workspace-1"
+     return workspaceID
+ }

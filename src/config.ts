@@ -1,13 +1,19 @@
 import { RULE_DEFINITIONS } from "./rules.js";
-import type { ConfigDocument, Provider, ResolvedConfig, ResolvedRule, RuleConfigOverride } from "./types.js";
+import type {
+  ConfigDocument,
+  Provider,
+  ResolvedConfig,
+  ResolvedRule,
+  RuleConfigOverride,
+} from "./types.js";
 
 /** Thrown for a config file that exists but cannot be used. The action fails closed on this. */
 export class ConfigError extends Error {}
 
-/** Default model per provider; OpenRouter aliases the latest Jev release with a tilde. */
+/** Pinned default model per provider. */
 export const DEFAULT_MODELS: Record<Provider, string> = {
-  typesafe: "jev-latest",
-  openrouter: "~typesafe/jev-latest",
+  typesafe: "jev-1.13.0",
+  openrouter: "typesafe/jev-1.13-20260917",
 };
 
 export const PROVIDERS: readonly Provider[] = ["typesafe", "openrouter"];
@@ -34,7 +40,7 @@ export const DEFAULT_MAX_STATE_TOKENS = 24_000;
 export const MIN_STATE_TOKENS = 2_000;
 export const MAX_STATE_TOKENS = 30_000;
 /** Gated rules answering within this distance of their threshold get a second ask. */
-export const DEFAULT_BORDERLINE_MARGIN = 0.1;
+export const DEFAULT_BORDERLINE_MARGIN = 0;
 export const MAX_BORDERLINE_MARGIN = 0.3;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -42,22 +48,38 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Validate one rule override; unknown keys and bad types are config errors, not defaults. */
-function readRuleOverride(name: string, raw: unknown, warnings: string[]): RuleConfigOverride {
+function readRuleOverride(
+  name: string,
+  raw: unknown,
+  warnings: string[],
+): RuleConfigOverride {
   if (!isRecord(raw)) throw new ConfigError(`rules.${name} must be a mapping`);
   const override: RuleConfigOverride = {};
   for (const [key, value] of Object.entries(raw)) {
     if (key === "enabled" || key === "gate") {
-      if (typeof value !== "boolean") throw new ConfigError(`rules.${name}.${key} must be a boolean`);
+      if (typeof value !== "boolean")
+        throw new ConfigError(`rules.${name}.${key} must be a boolean`);
       override[key] = value;
     } else if (key === "threshold") {
-      if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
-        throw new ConfigError(`rules.${name}.threshold must be a number between 0 and 1`);
+      if (
+        typeof value !== "number" ||
+        !Number.isFinite(value) ||
+        value < 0 ||
+        value > 1
+      ) {
+        throw new ConfigError(
+          `rules.${name}.threshold must be a number between 0 and 1`,
+        );
       }
       override.threshold = value;
       if (value === 0) {
-        warnings.push(`rules.${name}.threshold is 0, so the rule fires on every diff`);
+        warnings.push(
+          `rules.${name}.threshold is 0, so the rule fires on every diff`,
+        );
       } else if (value === 1) {
-        warnings.push(`rules.${name}.threshold is 1, so the rule fires only on a certain answer`);
+        warnings.push(
+          `rules.${name}.threshold is 1, so the rule fires only on a certain answer`,
+        );
       }
     } else {
       throw new ConfigError(`rules.${name}.${key} is not a known setting`);
@@ -67,7 +89,10 @@ function readRuleOverride(name: string, raw: unknown, warnings: string[]): RuleC
 }
 
 /** Validate the optional OpenRouter settings block. */
-function readOpenRouterSettings(raw: unknown): { referer?: string; title?: string } {
+function readOpenRouterSettings(raw: unknown): {
+  referer?: string;
+  title?: string;
+} {
   if (!isRecord(raw)) throw new ConfigError("openrouter must be a mapping");
   const settings: { referer?: string; title?: string } = {};
   for (const [key, value] of Object.entries(raw)) {
@@ -83,13 +108,32 @@ function readOpenRouterSettings(raw: unknown): { referer?: string; title?: strin
 }
 
 /** Validate the parsed YAML document. Unknown top-level or rule keys are errors. */
-export function validateConfigDocument(raw: unknown, warnings: string[] = []): ConfigDocument {
+export function validateConfigDocument(
+  raw: unknown,
+  warnings: string[] = [],
+): ConfigDocument {
   if (raw === null || raw === undefined) return {};
-  if (!isRecord(raw)) throw new ConfigError("the config file must be a YAML mapping");
+  if (!isRecord(raw))
+    throw new ConfigError("the config file must be a YAML mapping");
   const doc: ConfigDocument = {};
   const knownRules = new Set(RULE_DEFINITIONS.map((rule) => rule.name));
   for (const [key, value] of Object.entries(raw)) {
-    if (key === "provider") {
+    if (key === "mode") {
+      if (value !== "advisory" && value !== "required")
+        throw new ConfigError("mode must be advisory or required");
+      doc.mode = value;
+    } else if (key === "maxRequests") {
+      if (
+        typeof value !== "number" ||
+        !Number.isInteger(value) ||
+        value < 1 ||
+        value > 500
+      )
+        throw new ConfigError(
+          "maxRequests must be an integer between 1 and 500",
+        );
+      doc.maxRequests = value;
+    } else if (key === "provider") {
       if (value !== "typesafe" && value !== "openrouter") {
         throw new ConfigError("provider must be typesafe or openrouter");
       }
@@ -97,7 +141,8 @@ export function validateConfigDocument(raw: unknown, warnings: string[] = []): C
     } else if (key === "openrouter") {
       doc.openrouter = readOpenRouterSettings(value);
     } else if (key === "model") {
-      if (typeof value !== "string" || value.trim() === "") throw new ConfigError("model must be a non-empty string");
+      if (typeof value !== "string" || value.trim() === "")
+        throw new ConfigError("model must be a non-empty string");
       doc.model = value.trim();
     } else if (key === "maxStateTokens") {
       if (
@@ -112,23 +157,38 @@ export function validateConfigDocument(raw: unknown, warnings: string[] = []): C
       }
       doc.maxStateTokens = value;
     } else if (key === "borderlineMargin") {
-      if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > MAX_BORDERLINE_MARGIN) {
-        throw new ConfigError(`borderlineMargin must be a number between 0 and ${MAX_BORDERLINE_MARGIN}`);
+      if (
+        typeof value !== "number" ||
+        !Number.isFinite(value) ||
+        value < 0 ||
+        value > MAX_BORDERLINE_MARGIN
+      ) {
+        throw new ConfigError(
+          `borderlineMargin must be a number between 0 and ${MAX_BORDERLINE_MARGIN}`,
+        );
       }
       doc.borderlineMargin = value;
     } else if (key === "ignore") {
-      if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+      if (
+        !Array.isArray(value) ||
+        value.some((entry) => typeof entry !== "string")
+      ) {
         throw new ConfigError("ignore must be a list of glob strings");
       }
       doc.ignore = value as string[];
     } else if (key === "comment") {
-      if (typeof value !== "boolean") throw new ConfigError("comment must be a boolean");
+      if (typeof value !== "boolean")
+        throw new ConfigError("comment must be a boolean");
       doc.comment = value;
     } else if (key === "rules") {
-      if (!isRecord(value)) throw new ConfigError("rules must be a mapping of rule name to settings");
+      if (!isRecord(value))
+        throw new ConfigError(
+          "rules must be a mapping of rule name to settings",
+        );
       const rules: Record<string, RuleConfigOverride> = {};
       for (const [name, entry] of Object.entries(value)) {
-        if (!knownRules.has(name)) throw new ConfigError(`rules.${name} is not a known rule`);
+        if (!knownRules.has(name))
+          throw new ConfigError(`rules.${name} is not a known rule`);
         rules[name] = readRuleOverride(name, entry, warnings);
       }
       doc.rules = rules;
@@ -146,13 +206,15 @@ export function resolveConfig(doc: ConfigDocument): ResolvedConfig {
     const override = overrides[definition.name];
     return {
       ...definition,
-      enabled: override?.enabled ?? true,
+      enabled: override?.enabled ?? definition.enabled ?? true,
       gate: override?.gate ?? definition.gate,
       threshold: override?.threshold ?? definition.threshold,
     };
   });
   return {
     provider: doc.provider ?? "typesafe",
+    mode: doc.mode ?? "advisory",
+    maxRequests: doc.maxRequests ?? 64,
     model: doc.model ?? DEFAULT_MODELS[doc.provider ?? "typesafe"],
     maxStateTokens: doc.maxStateTokens ?? DEFAULT_MAX_STATE_TOKENS,
     borderlineMargin: doc.borderlineMargin ?? DEFAULT_BORDERLINE_MARGIN,

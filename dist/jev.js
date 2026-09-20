@@ -1,4 +1,4 @@
-import { TypeSafeClient } from "@typesafe-ai/sdk";
+import { TypeSafeClient, } from "@typesafe-ai/sdk";
 /** Input price from the TypeSafe docs and the OpenRouter model page, read 2026-09-19. Output is free. */
 export const USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
 export const costUSD = (inputTokens) => inputTokens * USD_PER_INPUT_TOKEN;
@@ -58,7 +58,9 @@ function withTimeout(signal, timeoutMs) {
     const timeout = AbortSignal.timeout(timeoutMs);
     if (!signal)
         return timeout;
-    return typeof AbortSignal.any === "function" ? AbortSignal.any([signal, timeout]) : timeout;
+    return typeof AbortSignal.any === "function"
+        ? AbortSignal.any([signal, timeout])
+        : timeout;
 }
 async function errorDetail(response) {
     try {
@@ -71,7 +73,9 @@ async function errorDetail(response) {
     }
 }
 async function runOpenRouter(request) {
-    const base = (request.baseURL ?? process.env.OPENROUTER_BASE_URL ?? OPENROUTER_DEFAULT_BASE).replace(/\/+$/, "");
+    const base = (request.baseURL ??
+        process.env.OPENROUTER_BASE_URL ??
+        OPENROUTER_DEFAULT_BASE).replace(/\/+$/, "");
     const url = `${base}/api/alpha/decisions`;
     const maxRetries = request.retry?.maxRetries ?? 2;
     const backoffMs = request.retry?.backoffInitialMs ?? 500;
@@ -89,7 +93,11 @@ async function runOpenRouter(request) {
         headers["X-Title"] = request.app.title;
         headers["X-OpenRouter-Title"] = request.app.title;
     }
-    const body = JSON.stringify({ model: request.model, state: request.state, questions: request.questions });
+    const body = JSON.stringify({
+        model: request.model,
+        state: request.state,
+        questions: request.questions,
+    });
     const started = performance.now();
     let lastError = null;
     for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
@@ -117,7 +125,9 @@ async function runOpenRouter(request) {
             continue;
         }
         const payload = (await response.json());
-        if (typeof payload.answers !== "object" || payload.answers === null || Array.isArray(payload.answers)) {
+        if (typeof payload.answers !== "object" ||
+            payload.answers === null ||
+            Array.isArray(payload.answers)) {
             throw new JevProviderError("OpenRouter response carried no answers object", null);
         }
         return {

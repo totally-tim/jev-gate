@@ -1,13 +1,10 @@
 {
   "name": "jev-gate-opencode",
-  "version": "0.1.0",
-  "description": "Automatic jev-gate reviews in OpenCode sessions: watch the local change set, record findings in a ledger, and optionally brief the agent before its next model call.",
+  "version": "0.2.0",
+  "description": "Current, located JEV review findings for OpenCode sessions.",
   "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./index.ts"
-  },
-  "dependencies": {
-    "@opencode/plugin": "^2.0.0"
   }
 }

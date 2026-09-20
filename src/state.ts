@@ -1,15 +1,15 @@
-import type { DiffFile, PullRequestContext, ResolvedConfig, ReviewState } from "./types.js";
+import { hash } from "./snapshot.js";
+import type {
+  Candidate,
+  DiffFile,
+  PullRequestContext,
+  ReviewState,
+} from "./types.js";
 
-/** Rough token estimate from characters, used only for the state budget. */
+/** Conservative UTF-8 byte bound; avoids undercounting code and non-ASCII text. */
 export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
+  return Buffer.byteLength(text, "utf8");
 }
-
-/** Largest patch kept per file before the global budget trims further. */
-export const MAX_PATCH_CHARS_PER_FILE = 8_000;
-
-const MAX_TITLE_CHARS = 300;
-const MAX_DESCRIPTION_CHARS = 4_000;
 
 const globCache = new Map<string, RegExp>();
 
@@ -44,80 +44,115 @@ export function matchGlob(pattern: string, path: string): boolean {
   return regex.test(path);
 }
 
-function isIgnored(path: string, ignore: readonly string[]): boolean {
-  return ignore.some((pattern) => matchGlob(pattern, path));
-}
+export const isIgnored = (path: string, ignore: readonly string[]): boolean =>
+  ignore.some((pattern) => matchGlob(pattern, path));
 
-function clip(text: string, limit: number): string {
-  return text.length <= limit ? text : `${text.slice(0, limit)}\n[clipped]`;
-}
-
-/**
- * Build the state sent to Jev. Files are filtered by the ignore globs and sorted for
- * determinism; when the estimate exceeds the token budget, patches are dropped from the
- * largest files first until the state fits, and the truncation is reported in the state.
- */
-export function buildState(
-  pr: PullRequestContext,
-  files: readonly DiffFile[],
-  config: Pick<ResolvedConfig, "ignore" | "maxStateTokens">,
-): { state: ReviewState; truncatedPaths: string[] } {
-  const kept = files
-    .filter((file) => !isIgnored(file.path, config.ignore))
-    .slice()
-    .sort((a, b) => a.path.localeCompare(b.path));
-
-  const entries = kept.map((file) => {
-    const entry: ReviewState["files"][number] = {
+/** Split every hunk into bounded candidates. Oversized lines remain explicit omissions. */
+export function candidatesFor(file: DiffFile, byteBudget: number): Candidate[] {
+  if (!file.patch?.trim()) return [];
+  const result: Candidate[] = [];
+  let group: string[] = [],
+    size = 0,
+    oldLine = 0,
+    newLine = 0;
+  let firstOld: number | null = null,
+    lastOld: number | null = null,
+    firstNew: number | null = null,
+    lastNew: number | null = null;
+  let hasAdded = false,
+    hasDeleted = false;
+  const flush = () => {
+    if (!group.length) return;
+    const patch = group.join("\n");
+    const side = hasDeleted && !hasAdded ? "old" : "new";
+    result.push({
+      id: hash({
+        path: file.path,
+        patch: patch.replace(/^@@.*@@.*$/gm, ""),
+      }).slice(0, 24),
       path: file.path,
       status: file.status,
-      additions: file.additions,
-      deletions: file.deletions,
-    };
-    if (file.patch !== null && file.patch.trim() !== "") {
-      entry.patch = clip(file.patch, MAX_PATCH_CHARS_PER_FILE);
+      patch,
+      side,
+      startLine: side === "old" ? firstOld : firstNew,
+      endLine: side === "old" ? lastOld : lastNew,
+    });
+    group = [];
+    size = 0;
+    firstOld = lastOld = firstNew = lastNew = null;
+    hasAdded = hasDeleted = false;
+  };
+  for (const line of file.patch.split("\n")) {
+    const hunk = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+    if (hunk) {
+      flush();
+      oldLine = Number(hunk[1]);
+      newLine = Number(hunk[2]);
     }
-    return entry;
-  });
-
-  const state: ReviewState = {
+    const bytes = Buffer.byteLength(line) + 1;
+    if (size + bytes > byteBudget) flush();
+    group.push(line);
+    size += bytes;
+    if (!hunk && !line.startsWith("---") && !line.startsWith("+++")) {
+      if (line.startsWith("+") || line.startsWith(" ")) {
+        firstNew ??= newLine || null;
+        lastNew = newLine || null;
+        newLine++;
+      }
+      if (line.startsWith("-") || line.startsWith(" ")) {
+        firstOld ??= oldLine || null;
+        lastOld = oldLine || null;
+        oldLine++;
+      }
+      if (line.startsWith("+")) hasAdded = true;
+      if (line.startsWith("-")) hasDeleted = true;
+    }
+  }
+  flush();
+  // Headers alone convey mode changes/renames; skip them when textual hunks follow.
+  return result.length > 1 &&
+    result[0]?.startLine === null &&
+    !/^[+-](?![+-])/m.test(result[0]?.patch ?? "")
+    ? result.slice(1)
+    : result;
+}
+export function buildState(
+  pr: PullRequestContext,
+  candidate: Candidate,
+  related: readonly DiffFile[] = [],
+): ReviewState {
+  const stem = (path: string) =>
+    path
+      .split("/")
+      .at(-1)
+      ?.replace(/\.(test|spec)(?=\.)|(?:^test_|_test(?=\.))/g, "");
+  const context = related
+    .filter(
+      (f) => f.path !== candidate.path && stem(f.path) === stem(candidate.path),
+    )
+    .slice(0, 4);
+  return {
     pr: {
-      title: clip(pr.title, MAX_TITLE_CHARS),
-      description: clip(pr.body.trim(), MAX_DESCRIPTION_CHARS),
+      title: pr.title.slice(0, 300),
+      description: pr.body.slice(0, 1000),
       author: pr.author,
       base: pr.baseRef,
       head: pr.headSha.slice(0, 12),
     },
-    totals: {
-      files: kept.length,
-      additions: pr.additions,
-      deletions: pr.deletions,
-      commits: pr.commits,
-    },
-    files: entries,
-    truncated: false,
+    files: [
+      {
+        path: candidate.path,
+        status: candidate.status,
+        patch: candidate.patch,
+      },
+    ],
+    relatedChanges: context.map((f) => ({
+      path: f.path,
+      status: f.status,
+      patch: f.patch?.slice(0, 2000) ?? "",
+      clipped: (f.patch?.length ?? 0) > 2000,
+    })),
+    scope:
+      "One candidate from the change. Unseen callers, files, and tests have not been inspected. Locations identify this candidate, not a proven defect.",
   };
-
-  const fits = () => estimateTokens(JSON.stringify(state)) <= config.maxStateTokens;
-  const truncatedPaths: string[] = [];
-  if (!fits()) {
-    // Drop patches from the largest first; a file's metadata stays.
-    const byPatchSize = entries
-      .filter((entry) => entry.patch !== undefined)
-      .sort((a, b) => (b.patch?.length ?? 0) - (a.patch?.length ?? 0));
-    for (const entry of byPatchSize) {
-      delete entry.patch;
-      truncatedPaths.push(entry.path);
-      if (fits()) break;
-    }
-  }
-  if (!fits()) {
-    // Even metadata-heavy states must fit: drop the tail of the file list.
-    while (entries.length > 0 && !fits()) {
-      const dropped = entries.pop();
-      if (dropped) truncatedPaths.push(dropped.path);
-    }
-  }
-  state.truncated = truncatedPaths.length > 0;
-  return { state, truncatedPaths };
 }

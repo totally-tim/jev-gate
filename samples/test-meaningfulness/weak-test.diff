@@ -1,0 +1,9 @@
+diff --git a/parser.test.ts b/parser.test.ts
+--- /dev/null
++++ b/parser.test.ts
+@@ -0,0 +1,5 @@
++test('parses an invoice', () => {
++  const result = parseInvoice('invoice 12.50 USD');
++  // Neither amount nor currency is checked.
++  expect(result).toBeDefined();
++});

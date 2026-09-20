@@ -1,0 +1,7 @@
+diff --git a/docs/setup.md b/docs/setup.md
+--- a/docs/setup.md
++++ b/docs/setup.md
+@@ -1,2 +1,3 @@
+ # Setup
+ Run npm ci to install dependencies.
++Run npm test to check the implementation.

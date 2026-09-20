@@ -1,186 +1,220 @@
 import { spawn } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { Plugin } from "@opencode/plugin";
 import {
-  deliveryLine,
-  formatBriefing,
-  hashDiff,
-  lastLedgerHash,
-  ledgerLine,
-  parseOutcome,
-  resolveOptions,
-} from "./core.js";
+  appendFileSync,
+  mkdirSync,
+  openSync,
+  fstatSync,
+  readSync,
+  closeSync,
+} from "node:fs";
+import { dirname } from "node:path";
+import type { Plugin } from "@opencode/plugin";
+import { parseOutcome, resolveOptions } from "./core.js";
+import { ReviewMonitor } from "./monitor.js";
 
-/** A child process that always resolves, with its exit code and captured output. */
-interface ProcessResult {
-  code: number | null;
-  stdout: string;
-  stderr: string;
-}
-
-function runProcess(
+export function runProcess(
   command: string,
-  args: readonly string[],
-  options: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs: number; input?: string },
-): Promise<ProcessResult> {
+  args: string[],
+  options: {
+    cwd: string;
+    env: NodeJS.ProcessEnv;
+    timeoutMs: number;
+    signal: AbortSignal;
+    input?: string;
+  },
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, [...args], {
+    if (options.signal.aborted) {
+      reject(new Error("cancelled"));
+      return;
+    }
+    const child = spawn(command, args, {
       cwd: options.cwd,
       env: options.env,
       stdio: ["pipe", "pipe", "pipe"],
+      detached: process.platform !== "win32",
     });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const timer = setTimeout(() => child.kill("SIGKILL"), options.timeoutMs);
+    let stdout = "",
+      stderr = "",
+      failure: Error | undefined;
+    const kill = () => {
+      try {
+        if (child.pid && process.platform !== "win32")
+          process.kill(-child.pid, "SIGKILL");
+        else child.kill("SIGKILL");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ESRCH")
+          failure = error as Error;
+      }
+    };
+    const timer = setTimeout(() => {
+      failure = new Error("CLI timed out");
+      kill();
+    }, options.timeoutMs);
+    const abort = () => {
+      failure = new Error("cancelled");
+      kill();
+    };
+    options.signal.addEventListener("abort", abort, { once: true });
     child.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
+      if (stdout.length > 64 * 1024 * 1024) {
+        failure = new Error("CLI output exceeded 64 MiB");
+        kill();
+      }
     });
     child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
+      stderr = (stderr + chunk.toString()).slice(-16000);
+    });
+    child.stdin.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code !== "EPIPE") {
+        failure = error;
+        kill();
+      }
     });
     child.on("error", (error) => {
-      clearTimeout(timer);
-      if (!settled) {
-        settled = true;
-        reject(error);
-      }
+      failure = error;
     });
     child.on("close", (code) => {
       clearTimeout(timer);
-      if (!settled) {
-        settled = true;
-        resolve({ code, stdout, stderr });
-      }
+      options.signal.removeEventListener("abort", abort);
+      if (failure) reject(failure);
+      else resolve({ code, stdout, stderr });
     });
-    if (options.input !== undefined) child.stdin.write(options.input);
-    child.stdin.end();
+    child.stdin.end(options.input);
   });
 }
-
-const firstLine = (text: string): string => text.trim().split("\n")[0] ?? "";
-
-/**
- * Watch the local change set and review it when it moves.
- *
- * Ledger mode is the default: every new diff gets one review, recorded in
- * `.jev-gate/ledger.jsonl`, and nothing is injected. With `inject: true` the gated findings
- * are also queued and handed to the next model call as a system block, once per diff.
- */
-export default Plugin.define({
+function readLedger(path: string): string {
+  let fd: number;
+  try {
+    fd = openSync(path, "r");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
+    throw error;
+  }
+  try {
+    const size = fstatSync(fd).size,
+      start = Math.max(0, size - 8 * 1024 * 1024),
+      buffer = Buffer.alloc(size - start);
+    readSync(fd, buffer, 0, buffer.length, start);
+    const text = buffer.toString("utf8");
+    return start ? text.slice(text.indexOf("\n") + 1) : text;
+  } finally {
+    closeSync(fd);
+  }
+}
+export default {
   id: "jev-gate",
   async setup(ctx) {
-    const directory = typeof ctx.location?.directory === "string" ? ctx.location.directory : process.cwd();
-    const options = resolveOptions(ctx.options, { directory });
-    const log = (message: string): void => console.log(`[jev-gate] ${message}`);
-
-    const childEnv: NodeJS.ProcessEnv = { ...process.env };
-    if (options.apiKey !== undefined) {
-      childEnv[options.provider === "openrouter" ? "OPENROUTER_API_KEY" : "TYPESAFE_API_KEY"] = options.apiKey;
-    }
-
-    const diffArgs = ["diff", ...(options.base === undefined ? [] : ["--base", options.base])];
-    const reviewArgs = ["review", "--diff", "-", "--json", "--no-gate"];
-    if (options.provider !== undefined) reviewArgs.push("--provider", options.provider);
-    if (options.model !== undefined) reviewArgs.push("--model", options.model);
-
-    let pending: { hash: string; text: string } | null = null;
-    // A new session inherits the last reviewed hash from the ledger, so an unchanged diff
-    // is not reviewed (and paid for) again just because the session restarted.
-    let lastHash: string | null = (() => {
-      try {
-        return lastLedgerHash(readFileSync(options.ledgerPath, "utf8"));
-      } catch {
-        return null;
-      }
-    })();
-    let failedHash: string | null = null;
-    let failedUntil = 0;
-    let running = false;
-    let disposed = false;
-
-    const FAILURE_BACKOFF_MS = 5 * 60_000;
-
-    const writeLedger = (line: string): void => {
-      mkdirSync(dirname(options.ledgerPath), { recursive: true });
-      appendFileSync(options.ledgerPath, line);
-    };
-
-    const poll = async (): Promise<void> => {
-      if (running || disposed) return;
-      running = true;
-      try {
-        const diff = await runProcess(options.cli, [...options.cliArgs, ...diffArgs], {
-          cwd: directory,
-          env: childEnv,
-          timeoutMs: options.timeoutMs,
+    const directory = ctx.location.directory,
+      options = resolveOptions(ctx.options, { directory });
+    const args = ["snapshot", "--json"];
+    for (const [flag, value] of [
+      ["base", options.base],
+      ["config", options.config],
+      ["policy-source", options.policySource],
+      ["provider", options.provider],
+      ["model", options.model],
+    ])
+      if (value) args.push(`--${flag}`, value);
+    const monitor = new ReviewMonitor({
+      read: () => readLedger(options.ledgerPath),
+      append: (record) => {
+        mkdirSync(dirname(options.ledgerPath), { recursive: true });
+        appendFileSync(options.ledgerPath, JSON.stringify(record) + "\n", {
+          mode: 0o600,
         });
-        if (diff.code !== 0) {
-          log(`diff failed: ${firstLine(diff.stderr) || `exit ${diff.code}`}`);
-          return;
-        }
-        if (diff.stdout.trim() === "") return;
-
-        const hash = hashDiff(diff.stdout);
-        if (hash === lastHash) return;
-        if (hash === failedHash && Date.now() < failedUntil) return;
-
-        const review = await runProcess(options.cli, [...options.cliArgs, ...reviewArgs], {
-          cwd: directory,
-          env: childEnv,
-          timeoutMs: options.timeoutMs,
-          input: diff.stdout,
-        });
-        if (review.code !== 0) {
-          failedHash = hash;
-          failedUntil = Date.now() + FAILURE_BACKOFF_MS;
-          log(`review failed (exit ${review.code}): ${firstLine(review.stderr) || "no message"}`);
-          return;
-        }
-        const outcome = parseOutcome(review.stdout);
-        if (outcome === null) {
-          failedHash = hash;
-          failedUntil = Date.now() + FAILURE_BACKOFF_MS;
-          log("review returned output the plugin could not read");
-          return;
-        }
-
-        lastHash = hash;
-        const briefing = options.inject ? formatBriefing(outcome, hash) : null;
-        if (briefing !== null) pending = { hash, text: briefing };
-        writeLedger(ledgerLine(outcome, hash, { injected: briefing !== null }));
-        const summary =
-          outcome.failedGates.length > 0 ? `gated: ${outcome.failedGates.join(", ")}` : "no gated findings";
-        log(`diff ${hash}: ${summary}${briefing !== null ? "; briefing queued for the next model call" : ""}`);
-      } catch (error) {
-        log(`poll failed: ${error instanceof Error ? error.message : String(error)}`);
-      } finally {
-        running = false;
-      }
-    };
-
-    await ctx.session.hook("context", (event) => {
-      if (!options.inject || pending === null) return;
-      event.system.push({ type: "text", text: pending.text });
-      writeLedger(
-        deliveryLine(pending.hash, {
-          agent: String(event.agent),
-          messages: Array.isArray(event.messages) ? event.messages.length : -1,
-        }),
-      );
-      log(`briefed the model on diff ${pending.hash}`);
-      pending = null;
+      },
+      collect: async (signal) => {
+        const result = await runProcess(
+          options.cli,
+          [...options.cliArgs, ...args],
+          {
+            cwd: directory,
+            env: process.env,
+            timeoutMs: options.timeoutMs,
+            signal,
+          },
+        );
+        if (result.code !== 0)
+          throw new Error(`snapshot command failed (${result.code})`);
+        const snapshot = JSON.parse(result.stdout) as {
+          schema?: number;
+          id?: string;
+          config?: { provider?: string };
+        };
+        if (
+          snapshot.schema !== 1 ||
+          typeof snapshot.id !== "string" ||
+          !/^[a-f0-9]{64}$/.test(snapshot.id) ||
+          !["typesafe", "openrouter"].includes(snapshot.config?.provider ?? "")
+        )
+          throw new Error("CLI returned an invalid snapshot");
+        return {
+          id: snapshot.id,
+          text: result.stdout,
+          provider: snapshot.config!.provider as "typesafe" | "openrouter",
+        };
+      },
+      review: async (snapshot, signal) => {
+        const env = { ...process.env };
+        if (options.apiKey)
+          env[
+            snapshot.provider === "openrouter"
+              ? "OPENROUTER_API_KEY"
+              : "TYPESAFE_API_KEY"
+          ] = options.apiKey;
+        const result = await runProcess(
+          options.cli,
+          [
+            ...options.cliArgs,
+            "review",
+            "--snapshot",
+            "-",
+            "--json",
+            "--no-gate",
+          ],
+          {
+            cwd: directory,
+            env,
+            timeoutMs: options.timeoutMs,
+            signal,
+            input: snapshot.text,
+          },
+        );
+        const outcome = parseOutcome(result.stdout);
+        if (!outcome)
+          throw new Error(
+            `CLI review unavailable (${result.code}); inspect CLI configuration`,
+          );
+        return outcome;
+      },
     });
-
+    const log = (e: unknown) =>
+      console.error(`[jev-gate] ${e instanceof Error ? e.message : String(e)}`);
+    await ctx.session.hook("context", async (event) => {
+      try {
+        if (options.inject)
+          await monitor.deliver(String(event.sessionID), (text) =>
+            event.system.push({ type: "text", text }),
+          );
+        else await monitor.poll();
+      } catch (e) {
+        log(e);
+        if (options.inject)
+          event.system.push({
+            type: "text",
+            text: "JEV review is unavailable. Do not treat this change as reviewed; inspect the plugin log and CLI configuration.",
+          });
+      }
+    });
     const timer = setInterval(() => {
-      void poll();
+      void monitor.poll().catch(log);
     }, options.intervalMs);
-    void poll();
-
-    return () => {
-      disposed = true;
+    void monitor.poll().catch(log);
+    return async () => {
       clearInterval(timer);
+      await monitor.dispose();
     };
   },
-});
+} satisfies Plugin.Plugin;

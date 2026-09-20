@@ -5,10 +5,16 @@ import { ConfigError } from "./config.js";
 const execGit = promisify(execFile);
 
 /** Confidence that a candidate base branch exists locally or as a remote-tracking ref. */
-const CANDIDATE_BASES = ["origin/HEAD", "origin/main", "origin/master", "main", "master"] as const;
+const CANDIDATE_BASES = [
+  "origin/HEAD",
+  "origin/main",
+  "origin/master",
+  "main",
+  "master",
+] as const;
 
 /** Untracked files are diffed one by one; past this many, they are skipped with a warning. */
-const MAX_UNTRACKED_FILES = 500;
+const MAX_UNTRACKED_FILES = 5_000;
 
 /**
  * The tool's own metadata directory (the ledger lives there). It must stay out of the
@@ -18,7 +24,8 @@ const MAX_UNTRACKED_FILES = 500;
 const EXCLUDED_PATHS = [".jev-gate"] as const;
 
 /** Pathspec list that excludes the tool's own directory. */
-const exclusions = (): string[] => EXCLUDED_PATHS.map((path) => `:(exclude)${path}`);
+const exclusions = (): string[] =>
+  EXCLUDED_PATHS.map((path) => `:(exclude)${path}`);
 
 const MAX_BUFFER = 64 * 1024 * 1024;
 
@@ -34,21 +41,43 @@ export interface LocalDiff {
   warnings: string[];
 }
 
-async function git(args: readonly string[], cwd: string | undefined): Promise<string> {
+async function git(
+  args: readonly string[],
+  cwd: string | undefined,
+): Promise<string> {
   try {
-    const { stdout } = await execGit("git", [...args], { cwd, maxBuffer: MAX_BUFFER });
+    const { stdout } = await execGit("git", [...args], {
+      cwd,
+      maxBuffer: MAX_BUFFER,
+    });
     return stdout;
   } catch (error) {
     const stderr = (error as { stderr?: string }).stderr?.trim();
-    const detail = stderr && stderr !== "" ? stderr.replace(/^fatal:\s*/i, "") : (error as Error).message;
+    const detail =
+      stderr && stderr !== ""
+        ? stderr.replace(/^fatal:\s*/i, "")
+        : (error as Error).message;
     throw new ConfigError(`git ${args[0]} failed: ${detail}`);
   }
 }
 
 /** Resolve a ref to a commit id, or null when it does not exist. */
-async function revParse(ref: string, cwd: string | undefined): Promise<string | null> {
+async function revParse(
+  ref: string,
+  cwd: string | undefined,
+): Promise<string | null> {
   try {
-    const { stdout } = await execGit("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { cwd });
+    const { stdout } = await execGit(
+      "git",
+      [
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        "--end-of-options",
+        `${ref}^{commit}`,
+      ],
+      { cwd },
+    );
     return stdout.trim() === "" ? null : stdout.trim();
   } catch {
     return null;
@@ -56,10 +85,15 @@ async function revParse(ref: string, cwd: string | undefined): Promise<string | 
 }
 
 /** The base ref to compare against: the explicit one, or the first default-branch candidate. */
-export async function resolveBaseRef(explicit: string | undefined, cwd?: string): Promise<string> {
+export async function resolveBaseRef(
+  explicit: string | undefined,
+  cwd?: string,
+): Promise<string> {
   if (explicit !== undefined) {
     if ((await revParse(explicit, cwd)) === null) {
-      throw new ConfigError(`base ref ${explicit} does not resolve to a commit`);
+      throw new ConfigError(
+        `base ref ${explicit} does not resolve to a commit`,
+      );
     }
     return explicit;
   }
@@ -72,9 +106,22 @@ export async function resolveBaseRef(explicit: string | undefined, cwd?: string)
 }
 
 /** Patches for files git does not track yet; `git diff` alone never shows them. */
-async function untrackedPatches(cwd: string | undefined): Promise<{ patch: string; warning: string | null }> {
+async function untrackedPatches(
+  cwd: string | undefined,
+): Promise<{ patch: string; warning: string | null }> {
   const listed = (
-    await git(["ls-files", "-z", "--others", "--exclude-standard", "--", ".", ...exclusions()], cwd)
+    await git(
+      [
+        "ls-files",
+        "-z",
+        "--others",
+        "--exclude-standard",
+        "--",
+        ".",
+        ...exclusions(),
+      ],
+      cwd,
+    )
   )
     .split("\0")
     .filter((path) => path !== "");
@@ -91,13 +138,28 @@ async function untrackedPatches(cwd: string | undefined): Promise<{ patch: strin
   let patch = "";
   for (const path of listed) {
     try {
-      const { stdout } = await execGit("git", ["diff", "--no-index", "--no-color", "--", "/dev/null", path], {
-        cwd,
-        maxBuffer: MAX_BUFFER,
-      });
+      const { stdout } = await execGit(
+        "git",
+        [
+          "diff",
+          "--no-index",
+          "--no-color",
+          "--no-ext-diff",
+          "--no-textconv",
+          "--",
+          "/dev/null",
+          path,
+        ],
+        {
+          cwd,
+          maxBuffer: MAX_BUFFER,
+        },
+      );
       patch += stdout;
     } catch (error) {
       // `--no-index` exits 1 whenever the files differ, which is the normal case.
+      if ((error as { code?: number }).code !== 1)
+        throw new ConfigError(`could not read untracked file ${path}`);
       patch += (error as { stdout?: string }).stdout ?? "";
     }
   }
@@ -109,12 +171,28 @@ async function untrackedPatches(cwd: string | undefined): Promise<{ patch: strin
  * base ref, plus staged, unstaged, and untracked working-tree files, as one unified diff.
  * That is the same shape GitHub shows for a pull request, with uncommitted work included.
  */
-export async function localDiff(explicitBase: string | undefined, cwd?: string): Promise<LocalDiff> {
+export async function localDiff(
+  explicitBase: string | undefined,
+  cwd?: string,
+): Promise<LocalDiff> {
+  cwd = (await git(["rev-parse", "--show-toplevel"], cwd)).trim();
   // Fail with git's own message when this is not a repository or HEAD has no commit yet.
   const headSha = (await git(["rev-parse", "HEAD"], cwd)).trim();
   const baseRef = await resolveBaseRef(explicitBase, cwd);
   const baseSha = (await git(["merge-base", baseRef, "HEAD"], cwd)).trim();
-  const tracked = await git(["diff", "--no-color", "--no-ext-diff", baseSha, "--", ".", ...exclusions()], cwd);
+  const tracked = await git(
+    [
+      "diff",
+      "--no-color",
+      "--no-ext-diff",
+      "--no-textconv",
+      baseSha,
+      "--",
+      ".",
+      ...exclusions(),
+    ],
+    cwd,
+  );
   const untracked = await untrackedPatches(cwd);
   return {
     diff: tracked + untracked.patch,

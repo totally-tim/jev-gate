@@ -81,18 +81,18 @@ test("the ledger directory never feeds back into the diff", async () => {
     const dir = scratchRepo();
     try {
         mkdirSync(join(dir, ".jev-gate"), { recursive: true });
-        writeFileSync(join(dir, ".jev-gate", "ledger.jsonl"), "{\"run\":1}\n");
+        writeFileSync(join(dir, ".jev-gate", "ledger.jsonl"), '{"run":1}\n');
         assert.equal((await localDiff(undefined, dir)).diff.trim(), "");
         // The ledger changes on every review; without the exclusion each write would change
         // the diff hash and trigger the next review.
-        writeFileSync(join(dir, ".jev-gate", "ledger.jsonl"), "{\"run\":1}\n{\"run\":2}\n");
+        writeFileSync(join(dir, ".jev-gate", "ledger.jsonl"), '{"run":1}\n{"run":2}\n');
         assert.equal((await localDiff(undefined, dir)).diff.trim(), "");
     }
     finally {
         rmSync(dir, { recursive: true, force: true });
     }
 });
-test("an untracked flood is skipped with a warning instead of reviewed", async () => {
+test("501 untracked files are collected rather than silently treated as empty", async () => {
     const dir = scratchRepo();
     try {
         mkdirSync(join(dir, "generated"), { recursive: true });
@@ -101,9 +101,8 @@ test("an untracked flood is skipped with a warning instead of reviewed", async (
             writeFileSync(join(dir, "generated", `file-${index}.txt`), "x\n");
         }
         const local = await localDiff(undefined, dir);
-        assert.equal(local.diff.trim(), "", "no untracked patch enters the diff");
-        assert.equal(local.warnings.length, 1);
-        assert.match(local.warnings[0] ?? "", /skipped 501 untracked files/);
+        assert.match(local.diff, /file-500.txt/);
+        assert.equal(local.warnings.length, 0);
     }
     finally {
         rmSync(dir, { recursive: true, force: true });
