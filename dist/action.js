@@ -188,7 +188,7 @@ export async function runAction() {
             warn(`The review finished but its comment could not be posted: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
-    writeSummary(renderSummary(outcome));
+    writeSummary(renderSummary(outcome, repository));
     setOutput("passed", outcome.health !== "complete"
         ? "unavailable"
         : outcome.passed

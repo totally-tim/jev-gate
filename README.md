@@ -73,8 +73,20 @@ Fork PRs do not receive provider secrets under `pull_request`. Their review will
 unavailable. To review forks, use `pull_request_target`, pin the Action to a reviewed commit,
 and retain this workflow's API-only design. Never add execution of fork code to that job.
 
-The comment leads with coverage and located findings. Detailed observations and machine data
-are available below it. Oversized reports go to the workflow summary and `result` output.
+The comment groups findings into review topics. Expand a row to see what to verify,
+the evidence, and links to every location. Small gauges show the peak model estimate
+beside its configured review threshold. Percentages answer a review question; they
+are not calibrated defect probabilities. Credential pattern matches show counts.
+The file map, coverage notes, and run metadata expand below the table. A review with
+no findings stays short. The full workflow report includes every model observation.
+
+The gauges use generic SVGs shipped in `assets/review/v1`, served from this project's
+public repository. Image URLs contain only a color and an integer from 0 to 100;
+no source paths, credentials, or review text are sent to an image service. Alt text
+preserves the estimate when images are unavailable. Regenerate the artwork with
+`node scripts/review-assets.mjs`; use a new version directory to change published art.
+
+Oversized reports go to the workflow summary and `result` output.
 Outputs include `health`, `status`, `passed`, `failed-gates`, and the complete JSON `result`.
 `passed` is `unavailable` when review did not complete. Provider failures exit nonzero and
 update the comment when the PR revision remains current.

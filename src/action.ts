@@ -258,7 +258,7 @@ export async function runAction(): Promise<number> {
     }
   }
 
-  writeSummary(renderSummary(outcome));
+  writeSummary(renderSummary(outcome, repository));
   setOutput(
     "passed",
     outcome.health !== "complete"
