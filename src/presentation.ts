@@ -101,5 +101,5 @@ export function estimateGraphic(d: RuleDecision, sensitive = false): string {
   if (d.kind !== "noul") return `<strong>${html(estimate(d))}</strong><br><sub>rubric score</sub>`;
   const percent = Math.round((d.probability ?? d.value) * 100);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) return "Unavailable";
-  return `<img src="${REVIEW_ASSETS}/${sensitive ? "blue" : "amber"}/${percent}.svg" width="44" height="44" alt="${percent}% model estimate"><br><sub>model estimate</sub>`;
+  return `<img src="${REVIEW_ASSETS}/${sensitive ? "blue" : "amber"}/${percent}.svg" width="44" height="44" alt="${percent}% model estimate"><br><sub>model&nbsp;estimate</sub>`;
 }

@@ -113,8 +113,8 @@ function topicRow(topic: ReviewTopic, outcome: ReviewOutcome, previous: ReviewOu
   const peak = peakDecision(topic, outcome);
   const context = paths.length === 1 ? htmlLocation({ ...first, startLine: null }, outcome, repository, first.path.split("/").slice(-2).join("/")) : `${paths.length} files`;
   const signal = topic.source === "local"
-    ? `<img src="${REVIEW_ASSETS}/match.svg" width="24" height="24" alt=""><br><strong>${topic.findings.length} match${topic.findings.length === 1 ? "" : "es"}</strong><br><sub>local scan</sub>`
-    : peak ? `${estimateGraphic(peak, topic.rule === "danger-sensitive-area")}<br><sub>review at ${html(thresholdLabel(peak))}</sub>` : "Estimate unavailable";
+    ? `<img src="${REVIEW_ASSETS}/match.svg" width="24" height="24" alt=""><br><strong>${topic.findings.length}&nbsp;match${topic.findings.length === 1 ? "" : "es"}</strong><br><sub>local&nbsp;scan</sub>`
+    : peak ? `${estimateGraphic(peak, topic.rule === "danger-sensitive-area")}<br><sub>review&nbsp;at&nbsp;${html(thresholdLabel(peak))}</sub>` : "Estimate unavailable";
   const evidence = displayed.map(f => {
     const known = previous?.policyHash === outcome.policyHash && previous?.model === outcome.model && previous.findings.some(p => p.id === f.id);
     return `<li>${htmlLocation(f, outcome, repository)}<br>${html(f.evidence)}<br><sub>${html(f.category)}; ${html(f.status)}${known ? "; existing" : ""}. Finding <code>${html(f.id)}</code>.</sub></li>`;

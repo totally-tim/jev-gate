@@ -152,5 +152,5 @@ test("gauges keep rubric units and never turn local sentinel values into model c
   const visible = renderComment(outcome, null).split("<!-- jev-gate:data")[0]!;
   assert.ok(visible.includes("<table>"));
   assert.ok(visible.includes("<details><summary>Check caller compatibility"));
-  assert.ok(visible.includes("review at 60%"));
+  assert.ok(visible.includes("review&nbsp;at&nbsp;60%"));
 });
