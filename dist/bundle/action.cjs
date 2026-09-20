@@ -9323,13 +9323,16 @@ function loadConfigText(text, warnings) {
 function applyInputOverrides(config) {
   const numeric = getInput("max-state-tokens");
   if (numeric) validateConfigDocument({ maxStateTokens: Number(numeric) });
+  const requests = getInput("max-requests");
+  if (requests) validateConfigDocument({ maxRequests: Number(requests) });
   return {
     ...applyOverrides(config, {
       provider: getInput("provider") || void 0,
       model: getInput("model") || void 0,
       mode: getInput("mode") || void 0
     }),
-    maxStateTokens: numeric ? Number(numeric) : config.maxStateTokens
+    maxStateTokens: numeric ? Number(numeric) : config.maxStateTokens,
+    maxRequests: requests ? Number(requests) : config.maxRequests
   };
 }
 function checkedBoolean(name, fallback) {

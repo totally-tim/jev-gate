@@ -82,7 +82,9 @@ function startMockServer(state) {
                         status: "modified",
                         additions: 2,
                         deletions: 1,
-                        patch: "@@ -1,2 +1,3 @@\n-old\n+new\n+more\n",
+                        patch: state.splitPatch
+                            ? "@@ -1 +1 @@\n-old\n+new\n@@ -10,0 +11 @@\n+more\n"
+                            : "@@ -1,2 +1,3 @@\n-old\n+new\n+more\n",
                     },
                 ]);
                 return;
@@ -146,6 +148,7 @@ async function runAction(state, options = {}) {
                     OPENROUTER_BASE_URL: mock.url,
                     ...(options.provider ? { INPUT_PROVIDER: options.provider } : {}),
                     INPUT_MODE: options.mode ?? "advisory",
+                    INPUT_MAX_REQUESTS: options.maxRequests ?? "",
                     INPUT_API_KEY: "test-key",
                     INPUT_GITHUB_TOKEN: "test-token",
                     GITHUB_OUTPUT: outputPath,
@@ -195,6 +198,31 @@ test("invalid policy publishes unavailable status without provider calls", async
     assert.equal(state.paths.length, 0);
     assert.ok(state.comments[0]?.includes("invalid"));
     assert.ok(r.outputs.includes("passed=unavailable"));
+});
+test("the Action request budget override completes a limited review and rejects invalid limits", async () => {
+    const state = {
+        dangerProbability: 0,
+        comments: [],
+        paths: [],
+        config: "maxRequests: 1",
+        splitPatch: true,
+    };
+    const limited = await runAction(state);
+    assert.equal(limited.code, 2, limited.log);
+    assert.ok(limited.outputs.includes("health=partial"));
+    assert.equal(state.paths.length, 1);
+    state.paths = [];
+    const complete = await runAction(state, { maxRequests: "2" });
+    assert.equal(complete.code, 0, complete.log);
+    assert.ok(complete.outputs.includes("health=complete"));
+    assert.equal(state.paths.length, 2);
+    for (const maxRequests of ["0", "501", "NaN"]) {
+        state.paths = [];
+        const invalid = await runAction(state, { maxRequests });
+        assert.equal(invalid.code, 2, invalid.log);
+        assert.ok(invalid.outputs.includes("health=unavailable"));
+        assert.equal(state.paths.length, 0);
+    }
 });
 test("required mode blocks configured findings and advisory mode preserves them", async () => {
     const state = {

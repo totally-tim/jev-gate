@@ -37,6 +37,9 @@ inputs:
   max-state-tokens:
     description: State token budget override; defaults to the config file or 24000.
     required: false
+  max-requests:
+    description: Maximum logical provider calls, 1 to 500; defaults to the config file or 64.
+    required: false
   timeout-ms:
     description: Per-attempt timeout for the Jev call in milliseconds.
     required: false

@@ -112,7 +112,7 @@ rules:
 | `openrouter.referer`, `openrouter.title` | None | Optional provider attribution headers. |
 
 OpenRouter reads `OPENROUTER_API_KEY`. Set `provider: openrouter` or use `--provider openrouter`.
-The Action also accepts `provider`, `model`, `mode`, `config-path`, `max-state-tokens`,
+The Action also accepts `provider`, `model`, `mode`, `config-path`, `max-state-tokens`, `max-requests`,
 `timeout-ms`, `api-key`, `github-token`, and `comment` inputs. Unknown configuration keys and
 invalid CLI flags fail explicitly.
 
