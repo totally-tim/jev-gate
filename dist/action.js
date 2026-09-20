@@ -180,7 +180,9 @@ export async function runAction() {
                 finishOutcome(outcome);
             }
             else
-                await client.upsertComment(owner, repo, number, existing?.id ?? null, renderComment(outcome, existing?.previous ?? null, repository));
+                await client.upsertComment(owner, repo, number, existing?.id ?? null, renderComment(outcome, existing?.previous ?? null, repository, process.env.GITHUB_RUN_ID
+                    ? `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${repository}/actions/runs/${process.env.GITHUB_RUN_ID}`
+                    : undefined));
         }
         catch (error) {
             warn(`The review finished but its comment could not be posted: ${error instanceof Error ? error.message : String(error)}`);

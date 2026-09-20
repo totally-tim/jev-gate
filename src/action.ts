@@ -242,7 +242,14 @@ export async function runAction(): Promise<number> {
           repo,
           number,
           existing?.id ?? null,
-          renderComment(outcome, existing?.previous ?? null, repository),
+          renderComment(
+            outcome,
+            existing?.previous ?? null,
+            repository,
+            process.env.GITHUB_RUN_ID
+              ? `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${repository}/actions/runs/${process.env.GITHUB_RUN_ID}`
+              : undefined,
+          ),
         );
     } catch (error) {
       warn(

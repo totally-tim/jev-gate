@@ -52,7 +52,7 @@ function location(f, outcome, repository) {
     const path = f.path.split("/").map(encodeURIComponent).join("/");
     return `[${escape(label)}](https://github.com/${repository}/blob/${sha}/${path}${f.startLine === null ? "" : `#L${f.startLine}`})`;
 }
-function renderBody(outcome, previous, repository) {
+function renderBody(outcome, previous, repository, compact) {
     const coverage = outcome.coverage.files, active = outcome.findings.filter((f) => f.status === "open");
     const lines = [
         `### JEV review: ${outcome.status}`,
@@ -67,12 +67,15 @@ function renderBody(outcome, previous, repository) {
         lines.push(outcome.health === "complete"
             ? "No open findings in the reviewed scope."
             : "No open findings were produced for the available scope.", "");
-    for (const f of outcome.findings) {
+    const displayedFindings = outcome.findings.slice(0, compact?.maxFindings);
+    for (const f of displayedFindings) {
         const freshness = previous?.findings.some((p) => p.id === f.id)
             ? "existing"
             : "new";
         lines.push(`- **${escape(f.title)}** (${f.category}; ${f.status}; ${freshness}) at ${location(f, outcome, repository)}.`, `  ${escape(f.evidence)} ${escape(f.verification)}`, `  Finding \`${f.id}\`.${f.disposition ? ` Disposition: ${escape(f.disposition.reason)}.` : ""}`, "");
     }
+    if (displayedFindings.length < outcome.findings.length)
+        lines.push(`${outcome.findings.length - displayedFindings.length} additional findings are in the full workflow summary.`, "");
     if (previous &&
         previous.policyHash === outcome.policyHash &&
         previous.model === outcome.model &&
@@ -81,27 +84,48 @@ function renderBody(outcome, previous, repository) {
         if (gone.length)
             lines.push(`${gone.length} previous finding(s) are no longer present in this assessment.`, "");
     }
-    for (const file of coverage.filter((f) => f.status !== "reviewed"))
+    const coverageNotes = coverage.filter((f) => f.status !== "reviewed");
+    for (const file of coverageNotes.slice(0, compact?.maxCoverage))
         lines.push(`- Coverage: \`${escape(file.path)}\` ${file.status}: ${escape(file.reason ?? "")}.`);
-    for (const w of outcome.coverage.warnings)
+    if (compact && coverageNotes.length > compact.maxCoverage)
+        lines.push(`- ${coverageNotes.length - compact.maxCoverage} additional coverage notes are in the full workflow summary.`);
+    for (const w of outcome.coverage.warnings.slice(0, compact?.maxCoverage))
         lines.push(`- Coverage warning: ${escape(w)}`);
+    if (compact && outcome.coverage.warnings.length > compact.maxCoverage)
+        lines.push(`- ${outcome.coverage.warnings.length - compact.maxCoverage} additional coverage warnings are in the full workflow summary.`);
     for (const error of outcome.errors.slice(0, 20))
         lines.push(`- Review error: ${escape(error)}`);
+    if (compact)
+        return lines.join("\n");
     lines.push("", "<details>", "<summary>Assessment details</summary>", "", "| Rule | Candidate | Observation | Result |", "| --- | --- | --- | --- |");
     for (const d of outcome.decisions)
         lines.push(`| ${escape(d.name)} | ${escape(d.candidate.path)} | ${displayValue(d)} | ${d.error ? "unavailable" : d.exceeded ? "review requested" : "below threshold"} |`);
     lines.push("", `Provider ${outcome.provider}; model ${escape(outcome.model)}; rules \`${outcome.rulesHash}\`; ${outcome.inputTokens} input tokens; estimated $${outcome.costUSD.toFixed(6)}; ${Math.round(outcome.latencyMs)} ms across model calls.`, "", "</details>");
     return lines.join("\n");
 }
-export function renderComment(outcome, previous, repository) {
+export function renderComment(outcome, previous, repository, reportUrl) {
     const data = JSON.stringify(outcome)
         .replaceAll("<", "\\u003c")
         .replaceAll(">", "\\u003e");
     const result = `${COMMENT_MARKER}\n${renderBody(outcome, previous, repository)}\n\n${DATA_OPEN}\n${data}\n${DATA_CLOSE}\n`;
-    // GitHub comments have a size limit; keep the summary and authoritative result in job outputs.
-    if (result.length > 60_000)
-        return `${COMMENT_MARKER}\nJEV review: ${outcome.status}. Review health: ${outcome.health}. Snapshot \`${outcome.snapshotId}\`.\n\nThe report exceeds the comment size limit. Read the workflow summary and result output for all findings and coverage.\n`;
-    return result;
+    if (result.length <= 60_000)
+        return result;
+    // Drop verbose observations and embedded JSON before sacrificing actionable findings.
+    // A compact comment has no machine-data block; the full result stays in job outputs.
+    const report = reportUrl && /^https:\/\/[a-z0-9.-]+\/[\w.-]+\/[\w.-]+\/actions\/runs\/\d+$/i.test(reportUrl)
+        ? `[full workflow summary](${reportUrl})`
+        : "full workflow summary";
+    const footer = `\n\nThis comment omits individual model observations and embedded result data to fit GitHub's size limit. Read the ${report} for all findings and coverage. Snapshot \`${outcome.snapshotId}\`.\n`;
+    let maxFindings = outcome.findings.length;
+    while (true) {
+        const compact = `${COMMENT_MARKER}\n${renderBody(outcome, previous, repository, { maxFindings, maxCoverage: 20 })}${footer}`;
+        if (compact.length <= 60_000)
+            return compact;
+        if (maxFindings === 0)
+            break;
+        maxFindings = Math.floor(maxFindings / 2);
+    }
+    return `${COMMENT_MARKER}\nJEV review: ${outcome.status}. Review health: ${outcome.health}. ${outcome.findings.length} findings; the coverage notes exceed the comment size limit.${footer}`;
 }
 export function renderSummary(outcome) {
     return renderBody(outcome, null) + "\n";
