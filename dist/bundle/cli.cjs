@@ -9029,7 +9029,9 @@ function buildState(pr, candidate, related = []) {
   const context = related.filter(
     (f) => f.path !== candidate.path && stem(f.path) === stem(candidate.path)
   ).slice(0, 4);
-  const wholePatch = related.find((f) => f.path === candidate.path)?.patch;
+  const rawPatch = related.find((f) => f.path === candidate.path)?.patch;
+  const hunkStart = rawPatch?.search(/^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/m) ?? -1;
+  const wholePatch = rawPatch && hunkStart >= 0 ? rawPatch.slice(hunkStart) : rawPatch;
   const opening = wholePatch && !wholePatch.startsWith(candidate.patch) ? wholePatch.slice(0, 1e3) : void 0;
   return {
     ...opening ? {

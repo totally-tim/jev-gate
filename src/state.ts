@@ -131,7 +131,10 @@ export function buildState(
       (f) => f.path !== candidate.path && stem(f.path) === stem(candidate.path),
     )
     .slice(0, 4);
-  const wholePatch = related.find((f) => f.path === candidate.path)?.patch;
+  const rawPatch = related.find((f) => f.path === candidate.path)?.patch;
+  const hunkStart = rawPatch?.search(/^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/m) ?? -1;
+  // Local git diffs include file headers; API and recovered patches start at a hunk.
+  const wholePatch = rawPatch && hunkStart >= 0 ? rawPatch.slice(hunkStart) : rawPatch;
   const opening = wholePatch && !wholePatch.startsWith(candidate.patch)
     ? wholePatch.slice(0, 1000)
     : undefined;
