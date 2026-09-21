@@ -51,3 +51,25 @@ test("candidate splitting preserves oversized lines for explicit budget errors",
   assert.ok(candidates.some((c) => c.patch.includes("+last")));
   assert.equal(estimateTokens("ü"), 2);
 });
+
+test("later chunks retain bounded opening context from the same file", () => {
+  const report = file(
+    '@@ -0,0 +1,20 @@\n+{"purpose":"review report, not executable code"}\n' +
+      Array.from({ length: 19 }, (_, i) => `+{"reviewed_security_item":${i}}`).join("\n"),
+    "reports/review.json",
+  );
+  const candidates = candidatesFor(report, 150);
+  assert.ok(candidates.length > 1);
+  const last = candidates.at(-1)!;
+  const state = buildState(localContext([report]), last, [report]);
+  assert.match(
+    state.fileContext?.openingPatch ?? "",
+    /review report, not executable code/,
+  );
+  assert.ok((state.fileContext?.openingPatch.length ?? Infinity) <= 1000);
+  assert.equal(state.files[0]?.patch, last.patch);
+  assert.equal(
+    buildState(localContext([report]), candidates[0]!, [report]).fileContext,
+    undefined,
+  );
+});

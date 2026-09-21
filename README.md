@@ -160,6 +160,9 @@ invalid CLI flags fail explicitly.
 
 The engine splits textual patches into bounded candidates and reviews every candidate that
 fits the configured budgets. Related implementation/test changes supply limited context.
+Later sections also receive up to 1,000 characters from the same file's diff opening, when the state
+budget permits. This keeps document purpose and module context visible after
+splitting; the opening is background, not an additional finding location.
 Locations identify the reviewed candidate, not an exact causal line. Missing callers and
 contracts still require a human or a reasoning model to investigate.
 

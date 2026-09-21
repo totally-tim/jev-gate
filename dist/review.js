@@ -131,6 +131,9 @@ export async function runReview(input) {
         if (requests >= config.maxRequests)
             throw new Error(`Request budget of ${config.maxRequests} reached`);
         const state = buildState(safePr, candidate, scanned.files);
+        // Optional context must not make an otherwise reviewable candidate exceed its budget.
+        if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
+            delete state.fileContext;
         if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
             throw new Error("Candidate exceeds the state budget; its content was not sent");
         requests++;
