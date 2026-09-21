@@ -9,7 +9,7 @@ it is not proof of a defect. Required blocking is an explicit repository policy.
 
 ## Local use
 
-Build this checkout with Node 26 and npm 12. The bundled CLI runs on Node 20 or later:
+Build this checkout with Node 26 and npm 12. The bundled CLI runs on Node 24 or later:
 
 ```sh
 npm ci
@@ -75,7 +75,8 @@ symlinks and submodules are not followed. Tree metadata is capped at 8 MiB per
 revision. Ignored current and previous paths are not fetched for recovery.
 Binary files, unsupported metadata-only
 changes, unavailable content, and exceeded limits remain explicit coverage gaps.
-The runner must have Git installed.
+The runner must have Git installed. The Action runs on Node 24. Self-hosted runners need
+runner 2.328.0 or later.
 
 The caller workflow cancels superseded runs. GitHub comments do not provide an atomic
 compare-and-update operation, so the revision in each result remains the authority.

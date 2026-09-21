@@ -61,5 +61,5 @@ outputs:
   result:
     description: The full review outcome as JSON.
 runs:
-  using: node20
+  using: node24
   main: dist/bundle/action.cjs
