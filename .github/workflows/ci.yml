@@ -30,8 +30,8 @@ jobs:
       - run: npm test
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - name: Verify the Action and CLI runtime on Node 20
+          node-version: 24
+      - name: Verify the Action and CLI runtime on Node 24
         run: node --test dist/*.test.js plugin/dist/*.test.js
       - name: dist is current
         run: |

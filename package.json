@@ -9,7 +9,7 @@
     "jev-gate": "dist/bundle/cli.cjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "build": "tsc && node scripts/build.mjs",
