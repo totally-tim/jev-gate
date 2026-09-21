@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { candidatesFor, matchGlob, estimateTokens, buildState, } from "./state.js";
 import { localContext } from "./snapshot.js";
 import { file } from "./test-fixtures.js";
+import { parseUnifiedDiff } from "./diff.js";
 test("glob matching covers root paths, nested paths, and literal punctuation", () => {
     assert.ok(matchGlob("**/dist/**", "dist/a.js"));
     assert.ok(matchGlob("**/*.test.ts", "a/b.test.ts"));
@@ -32,4 +33,34 @@ test("candidate splitting preserves oversized lines for explicit budget errors",
     assert.ok(candidates.some((c) => c.patch.includes("x".repeat(5000))));
     assert.ok(candidates.some((c) => c.patch.includes("+last")));
     assert.equal(estimateTokens("ü"), 2);
+});
+test("later chunks retain bounded opening context from the same file", () => {
+    const report = file('@@ -0,0 +1,20 @@\n+{"purpose":"review report, not executable code"}\n' +
+        Array.from({ length: 19 }, (_, i) => `+{"reviewed_security_item":${i}}`).join("\n"), "reports/review.json");
+    const candidates = candidatesFor(report, 150);
+    assert.ok(candidates.length > 1);
+    const last = candidates.at(-1);
+    const state = buildState(localContext([report]), last, [report]);
+    assert.match(state.fileContext?.openingPatch ?? "", /review report, not executable code/);
+    assert.ok((state.fileContext?.openingPatch.length ?? Infinity) <= 1000);
+    assert.equal(state.files[0]?.patch, last.patch);
+    assert.equal(buildState(localContext([report]), candidates[0], [report]).fileContext, undefined);
+});
+test("local diff headers do not duplicate context and match API candidate context", () => {
+    const patch = "@@ -0,0 +1,2 @@\n+document purpose\n+first section\n@@ -0,0 +5,1 @@\n+later section";
+    const apiFile = file(patch, "reports/review.json");
+    const localFile = parseUnifiedDiff("diff --git a/reports/review.json b/reports/review.json\n" +
+        "new file mode 100644\n--- /dev/null\n+++ b/reports/review.json\n" + patch).files[0];
+    const apiCandidates = candidatesFor(apiFile, 1000);
+    const localCandidates = candidatesFor(localFile, 1000);
+    assert.equal(localCandidates.length, 2);
+    for (const [index, candidate] of localCandidates.entries()) {
+        const localState = buildState(localContext([localFile]), candidate, [localFile]);
+        const apiState = buildState(localContext([apiFile]), apiCandidates[index], [apiFile]);
+        assert.deepEqual(localState.fileContext, apiState.fileContext);
+        if (index === 0)
+            assert.equal(localState.fileContext, undefined);
+        else
+            assert.match(localState.fileContext.openingPatch, /^@@/);
+    }
 });

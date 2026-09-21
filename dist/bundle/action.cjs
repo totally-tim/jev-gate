@@ -7371,7 +7371,8 @@ __export(action_exports, {
 });
 module.exports = __toCommonJS(action_exports);
 var import_node_crypto2 = require("node:crypto");
-var import_node_fs2 = require("node:fs");
+var import_node_fs3 = require("node:fs");
+var import_node_path2 = require("node:path");
 var import_yaml2 = __toESM(require_dist(), 1);
 
 // node_modules/@typesafe-ai/sdk/dist/index.mjs
@@ -8593,7 +8594,7 @@ ${DATA_CLOSE}
 `;
   if (result.length <= 6e4) return result;
   const footer = `
-<sub>Machine data exceeds the comment limit and is available in the full report.</sub>
+<sub>The JSON assessment exceeds the comment limit. Full model observations are in the workflow summary; JSON is available through the Action outputs and any configured report artifact.</sub>
 `;
   if (body.length + footer.length + COMMENT_MARKER.length + 1 <= 6e4) return `${COMMENT_MARKER}
 ${body}${footer}`;
@@ -8624,12 +8625,50 @@ var GitHubError = class extends Error {
   }
 };
 var API_VERSION = "2022-11-28";
+async function readLimitedText(response, maxBytes, onBytes) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("GitHub returned no file body");
+  const chunks = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      onBytes?.(value.byteLength);
+      if (size > maxBytes) throw new Error("GitHub file exceeds the collection byte limit");
+      if (value.includes(0)) throw new Error("Binary file has no supported textual review");
+      chunks.push(value);
+    }
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(Buffer.concat(chunks));
+  } finally {
+    await reader.cancel();
+  }
+}
 var GitHubClient = class {
   constructor(token, fetchImpl = fetch, apiBase = "https://api.github.com", commentAuthor = "github-actions[bot]") {
     this.token = token;
     this.fetchImpl = fetchImpl;
     this.apiBase = apiBase;
     this.commentAuthor = commentAuthor;
+  }
+  trees = /* @__PURE__ */ new Map();
+  async requireRegularFile(owner, repo, path, ref) {
+    const key = `${owner}/${repo}@${ref}`;
+    let tree = this.trees.get(key);
+    if (!tree) {
+      tree = (async () => {
+        const response = await this.request(`/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
+        const data = JSON.parse(await readLimitedText(response, 8 * 1024 * 1024));
+        if (data.truncated !== false || !Array.isArray(data.tree))
+          throw new Error("GitHub tree is incomplete; regular-file identity could not be verified");
+        return data.tree;
+      })();
+      this.trees.set(key, tree);
+    }
+    const entry = (await tree).find((entry2) => entry2.path === path);
+    if (!entry || entry.type !== "blob" || !["100644", "100755"].includes(entry.mode))
+      throw new Error("Recovery supports regular files only; symlinks and submodules are not followed");
   }
   async request(path, init = {}) {
     const response = await this.fetchImpl(`${this.apiBase}${path}`, {
@@ -8699,17 +8738,25 @@ var GitHubClient = class {
     return files;
   }
   /** Read a file at an exact ref; a missing file returns null. */
-  async getFileAtRef(owner, repo, path, ref) {
+  async getFileAtRef(owner, repo, path, ref, maxBytes = 2 * 1024 * 1024, options = {}) {
     try {
+      if (options.regularOnly) await this.requireRegularFile(owner, repo, path, ref);
       const response = await this.request(
         `/repos/${owner}/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`,
         { headers: { Accept: "application/vnd.github.raw+json" } }
       );
-      return await response.text();
+      return await readLimitedText(response, maxBytes, options.onBytes);
     } catch (error) {
       if (error instanceof GitHubError && error.status === 404) return null;
       throw error;
     }
+  }
+  async getMergeBase(owner, repo, base, head) {
+    const response = await this.request(`/repos/${owner}/${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}?per_page=1`);
+    const data = await response.json();
+    const sha = data.merge_base_commit?.sha;
+    if (!sha || !/^[0-9a-f]{40}$/.test(sha)) throw new Error("GitHub returned no valid merge-base revision");
+    return sha;
   }
   /** Find the sticky comment and its parsed previous run. */
   async findPreviousRun(owner, repo, number) {
@@ -8889,6 +8936,12 @@ async function runOpenRouter(request) {
   throw lastError ?? new JevProviderError("OpenRouter request failed", null);
 }
 
+// src/patch-recovery.ts
+var import_node_child_process2 = require("node:child_process");
+var import_node_fs2 = require("node:fs");
+var import_node_os = require("node:os");
+var import_node_path = require("node:path");
+
 // src/snapshot.ts
 var import_node_crypto = require("node:crypto");
 var import_yaml = __toESM(require_dist(), 1);
@@ -8900,7 +8953,7 @@ var execGit = (0, import_node_util.promisify)(import_node_child_process.execFile
 var MAX_BUFFER = 64 * 1024 * 1024;
 
 // src/snapshot.ts
-var STATE_VERSION = "candidate-v3";
+var STATE_VERSION = "candidate-v4";
 var hash = (value) => (0, import_node_crypto.createHash)("sha256").update(JSON.stringify(value)).digest("hex");
 function rulesHashFor(rules) {
   return hash(buildQuestions(rules.filter((r) => r.enabled))).slice(0, 16);
@@ -9039,7 +9092,18 @@ function buildState(pr, candidate, related = []) {
   const context = related.filter(
     (f) => f.path !== candidate.path && stem(f.path) === stem(candidate.path)
   ).slice(0, 4);
+  const rawPatch = related.find((f) => f.path === candidate.path)?.patch;
+  const hunkStart = rawPatch?.search(/^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/m) ?? -1;
+  const wholePatch = rawPatch && hunkStart >= 0 ? rawPatch.slice(hunkStart) : rawPatch;
+  const opening = wholePatch && !wholePatch.startsWith(candidate.patch) ? wholePatch.slice(0, 1e3) : void 0;
   return {
+    ...opening ? {
+      fileContext: {
+        openingPatch: opening,
+        clipped: opening.length < wholePatch.length,
+        scope: "Opening context from this same file's diff. Use it to understand the file's role; assess only the candidate in files. Purpose claims are not proof of safety."
+      }
+    } : {},
     pr: {
       title: pr.title.slice(0, 300),
       description: pr.body.slice(0, 1e3),
@@ -9062,6 +9126,96 @@ function buildState(pr, candidate, related = []) {
     })),
     scope: "One candidate from the change. Unseen callers, files, and tests have not been inspected. Locations identify this candidate, not a proven defect."
   };
+}
+
+// src/patch-recovery.ts
+var MAX_FILES = 100;
+var MAX_FILE_BYTES = 2 * 1024 * 1024;
+var MAX_TOTAL_BYTES = 16 * 1024 * 1024;
+function patchFromContents(before, after) {
+  const dir = (0, import_node_fs2.mkdtempSync)((0, import_node_path.join)((0, import_node_os.tmpdir)(), "jev-patch-"));
+  try {
+    (0, import_node_fs2.writeFileSync)((0, import_node_path.join)(dir, "before"), before, { mode: 384 });
+    (0, import_node_fs2.writeFileSync)((0, import_node_path.join)(dir, "after"), after, { mode: 384 });
+    const result = (0, import_node_child_process2.spawnSync)("git", [
+      "-c",
+      "core.attributesFile=/dev/null",
+      "diff",
+      "--no-index",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--text",
+      "--unified=3",
+      "--",
+      "before",
+      "after"
+    ], {
+      cwd: dir,
+      env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_ATTR_NOSYSTEM: "1" },
+      encoding: "utf8",
+      timeout: 5e3,
+      maxBuffer: 8 * 1024 * 1024
+    });
+    if (result.error || result.status !== 0 && result.status !== 1)
+      throw new Error("Git could not reconstruct the textual patch");
+    if (result.status === 0) return "";
+    const start = result.stdout.indexOf("@@ ");
+    if (start < 0) throw new Error("Git returned no textual hunks");
+    return result.stdout.slice(start).replace(/\n$/, "");
+  } finally {
+    (0, import_node_fs2.rmSync)(dir, { recursive: true, force: true });
+  }
+}
+async function recoverPatches(client, pr, files, ignore) {
+  let mergeBase;
+  let recovered = 0;
+  let remaining = MAX_TOTAL_BYTES;
+  const deadline = Date.now() + 12e4;
+  const read = async (path, ref) => {
+    if (remaining <= 0) throw new Error("Patch recovery reached its total byte limit");
+    if (Date.now() >= deadline) throw new Error("Patch recovery reached its time limit");
+    const allowance = Math.min(MAX_FILE_BYTES, remaining);
+    const text = await client.getFileAtRef(pr.owner, pr.repo, path, ref, allowance, {
+      regularOnly: true,
+      onBytes: (count) => {
+        remaining -= count;
+      }
+    });
+    if (text === null) throw new Error("File was unavailable at the pinned revision");
+    return text;
+  };
+  const result = [];
+  for (const file of files) {
+    if (isIgnored(file.path, ignore) || file.patch && !file.patchWarning) {
+      result.push(file);
+      continue;
+    }
+    try {
+      if (recovered++ >= MAX_FILES) throw new Error("Patch recovery reached its file limit");
+      if (file.previousPath && isIgnored(file.previousPath, ignore))
+        throw new Error("The previous path is excluded by policy");
+      if (!["added", "removed", "modified", "renamed", "copied", "changed"].includes(file.status))
+        throw new Error("File status is not supported for patch recovery");
+      let before = "";
+      if (file.status !== "added" && file.status !== "copied") {
+        mergeBase ??= client.getMergeBase(pr.owner, pr.repo, pr.baseSha, pr.headSha);
+        before = await read(file.previousPath ?? file.path, await mergeBase);
+      }
+      const after = file.status === "removed" ? "" : await read(file.path, pr.headSha);
+      const patch = patchFromContents(before, after);
+      if (!patch) throw new Error("No textual change; file metadata was not reviewed");
+      result.push({
+        ...file,
+        patch,
+        patchWarning: void 0,
+        additions: patch.split("\n").filter((line) => line.startsWith("+")).length,
+        deletions: patch.split("\n").filter((line) => line.startsWith("-")).length
+      });
+    } catch (error) {
+      result.push({ ...file, patchWarning: `Patch recovery incomplete: ${error instanceof Error ? error.message : String(error)}` });
+    }
+  }
+  return result;
 }
 
 // src/secrets.ts
@@ -9249,7 +9403,7 @@ async function runReview(input) {
     const coverage = {
       path: file.path,
       status: "unavailable",
-      reason: candidates.length ? null : "No textual patch was available",
+      reason: candidates.length ? null : original.patchWarning ?? "No textual patch was available",
       reviewedChunks: 0,
       totalChunks: candidates.length
     };
@@ -9265,6 +9419,8 @@ async function runReview(input) {
     if (requests >= config.maxRequests)
       throw new Error(`Request budget of ${config.maxRequests} reached`);
     const state = buildState(safePr, candidate, scanned.files);
+    if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
+      delete state.fileContext;
     if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
       throw new Error(
         "Candidate exceeds the state budget; its content was not sent"
@@ -9449,12 +9605,12 @@ function setOutput(name, value) {
   const file = process.env.GITHUB_OUTPUT;
   if (!file) return;
   if (!value.includes("\n")) {
-    (0, import_node_fs2.appendFileSync)(file, `${name}=${value}
+    (0, import_node_fs3.appendFileSync)(file, `${name}=${value}
 `);
     return;
   }
   const delimiter = `__JEV_GATE_${(0, import_node_crypto2.randomUUID)()}__`;
-  (0, import_node_fs2.appendFileSync)(file, `${name}<<${delimiter}
+  (0, import_node_fs3.appendFileSync)(file, `${name}<<${delimiter}
 ${value}
 ${delimiter}
 `);
@@ -9462,22 +9618,32 @@ ${delimiter}
 function writeSummary(markdown) {
   const file = process.env.GITHUB_STEP_SUMMARY;
   if (!file) return;
-  (0, import_node_fs2.appendFileSync)(file, markdown);
+  (0, import_node_fs3.appendFileSync)(file, markdown);
+}
+function publishResult(result) {
+  const json = JSON.stringify(result);
+  setOutput("result", json);
+  if (process.env.RUNNER_TEMP) {
+    try {
+      const path = (0, import_node_path2.join)(process.env.RUNNER_TEMP, `jev-gate-result-${(0, import_node_crypto2.randomUUID)()}.json`);
+      (0, import_node_fs3.writeFileSync)(path, json, { mode: 384, flag: "wx" });
+      setOutput("result-path", path);
+    } catch {
+      warn("Could not save the optional JSON report file; the result output remains available.");
+    }
+  }
 }
 function unavailableInput(message) {
   fail(message);
   setOutput("passed", "unavailable");
   setOutput("health", "unavailable");
   setOutput("status", "unavailable");
-  setOutput(
-    "result",
-    JSON.stringify({
-      schema: 2,
-      health: "unavailable",
-      status: "unavailable",
-      error: { kind: "input", message }
-    })
-  );
+  publishResult({
+    schema: 2,
+    health: "unavailable",
+    status: "unavailable",
+    error: { kind: "input", message }
+  });
   return 2;
 }
 function readEvent() {
@@ -9486,7 +9652,7 @@ function readEvent() {
     throw new Error(
       "GITHUB_EVENT_PATH is not set; this entry point runs inside GitHub Actions"
     );
-  return JSON.parse((0, import_node_fs2.readFileSync)(path, "utf8"));
+  return JSON.parse((0, import_node_fs3.readFileSync)(path, "utf8"));
 }
 function loadConfigText(text, warnings) {
   const parsed = (0, import_yaml2.parse)(text);
@@ -9550,7 +9716,7 @@ async function runAction() {
   const pr = await client.getPullRequest(owner, repo, number);
   if (manual && pr.state !== "open")
     return unavailableInput("manual review requires an open pull request");
-  const files = await client.listChangedFiles(owner, repo, number);
+  let files = await client.listChangedFiles(owner, repo, number);
   const afterCollection = await client.getPullRequest(owner, repo, number);
   const sameRevision = (a, b) => a.headSha === b.headSha && a.baseSha === b.baseSha;
   const collectionWarnings = [];
@@ -9589,6 +9755,12 @@ async function runAction() {
     config = resolveConfig({});
   }
   for (const message of configWarnings) warn(`config: ${message}`);
+  if (!collectionWarnings.length) {
+    files = await recoverPatches(client, pr, files, config.ignore);
+    const afterRecovery = await client.getPullRequest(owner, repo, number);
+    if (!sameRevision(pr, afterRecovery))
+      collectionWarnings.push("The PR changed during patch recovery. Rerun on the current revision.");
+  }
   const keyEnv = PROVIDER_ENV_KEYS[config.provider];
   const apiKey = getInput("api-key") || process.env[keyEnv] || "";
   const started = Date.now();
@@ -9644,7 +9816,7 @@ async function runAction() {
   setOutput("health", outcome.health);
   setOutput("status", outcome.status);
   setOutput("failed-gates", outcome.failedGates.join(","));
-  setOutput("result", JSON.stringify(outcome));
+  publishResult(outcome);
   notice(
     `jev-gate reviewed ${outcome.decisions.length} rules in ${Date.now() - started} ms (model call ${Math.round(outcome.latencyMs)} ms, ${outcome.inputTokens} input tokens)`
   );

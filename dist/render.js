@@ -192,7 +192,7 @@ export function renderComment(outcome, previous, repository, reportUrl) {
     const result = `${COMMENT_MARKER}\n${body}\n${DATA_OPEN}\n${data}\n${DATA_CLOSE}\n`;
     if (result.length <= 60_000)
         return result;
-    const footer = `\n<sub>Machine data exceeds the comment limit and is available in the full report.</sub>\n`;
+    const footer = `\n<sub>The JSON assessment exceeds the comment limit. Full model observations are in the workflow summary; JSON is available through the Action outputs and any configured report artifact.</sub>\n`;
     if (body.length + footer.length + COMMENT_MARKER.length + 1 <= 60_000)
         return `${COMMENT_MARKER}\n${body}${footer}`;
     let maxFindings = outcome.findings.length;

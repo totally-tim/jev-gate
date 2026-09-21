@@ -176,6 +176,7 @@ export interface ReviewState {
     head: string;
   };
   files: Array<{ path: string; status: string; patch: string }>;
+  fileContext?: { openingPatch: string; clipped: boolean; scope: string };
   scope: string;
   relatedChanges?: Array<{
     path: string;

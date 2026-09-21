@@ -19,7 +19,7 @@ import type {
   ResolvedRule,
   ReviewSnapshot,
 } from "./types.js";
-export const STATE_VERSION = "candidate-v3";
+export const STATE_VERSION = "candidate-v4";
 export const hash = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 export function rulesHashFor(rules: readonly ResolvedRule[]): string {

@@ -8720,7 +8720,7 @@ function parseUnifiedDiff(text) {
 var parseDiff = (text) => parseUnifiedDiff(text).files;
 
 // src/snapshot.ts
-var STATE_VERSION = "candidate-v3";
+var STATE_VERSION = "candidate-v4";
 var hash = (value) => (0, import_node_crypto.createHash)("sha256").update(JSON.stringify(value)).digest("hex");
 function rulesHashFor(rules) {
   return hash(buildQuestions(rules.filter((r) => r.enabled))).slice(0, 16);
@@ -9029,7 +9029,18 @@ function buildState(pr, candidate, related = []) {
   const context = related.filter(
     (f) => f.path !== candidate.path && stem(f.path) === stem(candidate.path)
   ).slice(0, 4);
+  const rawPatch = related.find((f) => f.path === candidate.path)?.patch;
+  const hunkStart = rawPatch?.search(/^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/m) ?? -1;
+  const wholePatch = rawPatch && hunkStart >= 0 ? rawPatch.slice(hunkStart) : rawPatch;
+  const opening = wholePatch && !wholePatch.startsWith(candidate.patch) ? wholePatch.slice(0, 1e3) : void 0;
   return {
+    ...opening ? {
+      fileContext: {
+        openingPatch: opening,
+        clipped: opening.length < wholePatch.length,
+        scope: "Opening context from this same file's diff. Use it to understand the file's role; assess only the candidate in files. Purpose claims are not proof of safety."
+      }
+    } : {},
     pr: {
       title: pr.title.slice(0, 300),
       description: pr.body.slice(0, 1e3),
@@ -9239,7 +9250,7 @@ async function runReview(input) {
     const coverage = {
       path: file.path,
       status: "unavailable",
-      reason: candidates.length ? null : "No textual patch was available",
+      reason: candidates.length ? null : original.patchWarning ?? "No textual patch was available",
       reviewedChunks: 0,
       totalChunks: candidates.length
     };
@@ -9255,6 +9266,8 @@ async function runReview(input) {
     if (requests >= config.maxRequests)
       throw new Error(`Request budget of ${config.maxRequests} reached`);
     const state = buildState(safePr, candidate, scanned.files);
+    if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
+      delete state.fileContext;
     if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
       throw new Error(
         "Candidate exceeds the state budget; its content was not sent"

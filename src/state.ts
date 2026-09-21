@@ -131,7 +131,21 @@ export function buildState(
       (f) => f.path !== candidate.path && stem(f.path) === stem(candidate.path),
     )
     .slice(0, 4);
+  const rawPatch = related.find((f) => f.path === candidate.path)?.patch;
+  const hunkStart = rawPatch?.search(/^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/m) ?? -1;
+  // Local git diffs include file headers; API and recovered patches start at a hunk.
+  const wholePatch = rawPatch && hunkStart >= 0 ? rawPatch.slice(hunkStart) : rawPatch;
+  const opening = wholePatch && !wholePatch.startsWith(candidate.patch)
+    ? wholePatch.slice(0, 1000)
+    : undefined;
   return {
+    ...(opening ? {
+      fileContext: {
+        openingPatch: opening,
+        clipped: opening.length < wholePatch!.length,
+        scope: "Opening context from this same file's diff. Use it to understand the file's role; assess only the candidate in files. Purpose claims are not proof of safety.",
+      },
+    } : {}),
     pr: {
       title: pr.title.slice(0, 300),
       description: pr.body.slice(0, 1000),

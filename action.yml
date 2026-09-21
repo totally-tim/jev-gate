@@ -48,6 +48,8 @@ inputs:
     required: false
     default: "30000"
 outputs:
+  result-path:
+    description: JSON report file under RUNNER_TEMP, suitable for artifact upload even for large reviews.
   health:
     description: Complete, partial, or unavailable review coverage.
   status:

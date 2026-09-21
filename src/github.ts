@@ -36,8 +36,56 @@ interface GitHubPullPayload {
 
 const API_VERSION = "2022-11-28";
 
+interface FileReadOptions {
+  regularOnly?: boolean;
+  onBytes?: (count: number) => void;
+}
+
+async function readLimitedText(response: Response, maxBytes: number, onBytes?: (count: number) => void): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("GitHub returned no file body");
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      onBytes?.(value.byteLength);
+      if (size > maxBytes) throw new Error("GitHub file exceeds the collection byte limit");
+      if (value.includes(0)) throw new Error("Binary file has no supported textual review");
+      chunks.push(value);
+    }
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(Buffer.concat(chunks));
+  } finally {
+    await reader.cancel();
+  }
+}
+
 /** A minimal GitHub REST client; only the calls this action needs. */
 export class GitHubClient {
+  private readonly trees = new Map<string, Promise<Array<{ path: string; type: string; mode: string }>>>();
+
+  private async requireRegularFile(owner: string, repo: string, path: string, ref: string): Promise<void> {
+    const key = `${owner}/${repo}@${ref}`;
+    let tree = this.trees.get(key);
+    if (!tree) {
+      tree = (async () => {
+        const response = await this.request(`/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
+        const data = JSON.parse(await readLimitedText(response, 8 * 1024 * 1024)) as {
+          truncated?: boolean; tree?: Array<{ path: string; type: string; mode: string }>;
+        };
+        if (data.truncated !== false || !Array.isArray(data.tree))
+          throw new Error("GitHub tree is incomplete; regular-file identity could not be verified");
+        return data.tree;
+      })();
+      this.trees.set(key, tree);
+    }
+    const entry = (await tree).find(entry => entry.path === path);
+    if (!entry || entry.type !== "blob" || !["100644", "100755"].includes(entry.mode))
+      throw new Error("Recovery supports regular files only; symlinks and submodules are not followed");
+  }
+
   constructor(
     private readonly token: string,
     private readonly fetchImpl: typeof fetch = fetch,
@@ -142,17 +190,28 @@ export class GitHubClient {
     repo: string,
     path: string,
     ref: string,
+    maxBytes = 2 * 1024 * 1024,
+    options: FileReadOptions = {},
   ): Promise<string | null> {
     try {
+      if (options.regularOnly) await this.requireRegularFile(owner, repo, path, ref);
       const response = await this.request(
         `/repos/${owner}/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`,
         { headers: { Accept: "application/vnd.github.raw+json" } },
       );
-      return await response.text();
+      return await readLimitedText(response, maxBytes, options.onBytes);
     } catch (error) {
       if (error instanceof GitHubError && error.status === 404) return null;
       throw error;
     }
+  }
+
+  async getMergeBase(owner: string, repo: string, base: string, head: string): Promise<string> {
+    const response = await this.request(`/repos/${owner}/${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}?per_page=1`);
+    const data = await response.json() as { merge_base_commit?: { sha?: string } };
+    const sha = data.merge_base_commit?.sha;
+    if (!sha || !/^[0-9a-f]{40}$/.test(sha)) throw new Error("GitHub returned no valid merge-base revision");
+    return sha;
   }
 
   /** Find the sticky comment and its parsed previous run. */
