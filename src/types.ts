@@ -1,5 +1,6 @@
 /** Repository metadata for an immutable review input. */
 export interface PullRequestContext {
+  state?: string;
   owner: string;
   repo: string;
   number: number;

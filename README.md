@@ -69,6 +69,10 @@ and before publication, and updates only the expected GitHub Actions bot's stick
 The caller workflow cancels superseded runs. GitHub comments do not provide an atomic
 compare-and-update operation, so the revision in each result remains the authority.
 
+For manual reruns, add a `workflow_dispatch` PR-number input to the caller and pass
+it to the Action as `pull-request`. The Action validates that the PR is open and
+reads its current revision. Do not override GitHub's reserved event variables.
+
 Fork PRs do not receive provider secrets under `pull_request`. Their review will report
 unavailable. To review forks, use `pull_request_target`, pin the Action to a reviewed commit,
 and retain this workflow's API-only design. Never add execution of fork code to that job.

@@ -6,6 +6,9 @@ branding:
   icon: shield
   color: purple
 inputs:
+  pull-request:
+    description: Open PR number to review for workflow_dispatch. PR events use their own number.
+    required: false
   api-key:
     description: >-
       API key for the configured provider: a TypeSafe key or an OpenRouter key (store it

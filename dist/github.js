@@ -51,6 +51,7 @@ export class GitHubClient {
             owner,
             repo,
             number: pull.number,
+            state: pull.state,
             title: pull.title,
             body: pull.body ?? "",
             author: pull.user?.login ?? "unknown",
