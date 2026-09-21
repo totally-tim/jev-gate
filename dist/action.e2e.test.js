@@ -83,7 +83,7 @@ function startMockServer(state) {
                         status: "modified",
                         additions: 2,
                         deletions: 1,
-                        patch: state.splitPatch
+                        patch: state.missingPatch ? undefined : state.splitPatch
                             ? "@@ -1 +1 @@\n-old\n+new\n@@ -10,0 +11 @@\n+more\n"
                             : "@@ -1,2 +1,3 @@\n-old\n+new\n+more\n",
                     },
@@ -95,6 +95,24 @@ function startMockServer(state) {
                     send(200, state.config, "text/yaml");
                 else
                     send(404, { message: "Not Found" });
+                return;
+            }
+            if (url.pathname.startsWith("/repos/o/r/compare/")) {
+                send(200, { merge_base_commit: { sha: "d".repeat(40) } });
+                return;
+            }
+            if (url.pathname.startsWith("/repos/o/r/git/trees/")) {
+                send(200, { truncated: false, tree: [{ path: "src/auth.ts", mode: "100644", type: "blob" }] });
+                return;
+            }
+            if (url.pathname === "/repos/o/r/contents/src/auth.ts") {
+                const ref = url.searchParams.get("ref");
+                if (ref === "a".repeat(40))
+                    send(200, "new\nmore\n", "text/plain");
+                else if (ref === "d".repeat(40))
+                    send(200, "old\n", "text/plain");
+                else
+                    send(400, { message: "expected pinned head or merge-base" });
                 return;
             }
             if (url.pathname === "/repos/o/r/issues/3/comments" &&
@@ -155,6 +173,7 @@ async function runAction(state, options = {}) {
                     INPUT_GITHUB_TOKEN: "test-token",
                     GITHUB_OUTPUT: outputPath,
                     GITHUB_STEP_SUMMARY: summaryPath,
+                    RUNNER_TEMP: options.badTemp ? join(dir, "uncreated") : dir,
                 },
                 timeout: 30_000,
             });
@@ -164,6 +183,12 @@ async function runAction(state, options = {}) {
             const failure = error;
             code = failure.code === undefined ? 1 : Number(failure.code);
             log = `${failure.stdout ?? ""}\n${failure.stderr ?? ""}`;
+        }
+        const outputs = readFileSync(outputPath, "utf8");
+        const resultPath = outputs.split("\n").find(line => line.startsWith("result-path="))?.slice("result-path=".length);
+        if (resultPath) {
+            assert.equal(resultPath.startsWith(dir), true);
+            assert.deepEqual(JSON.parse(readFileSync(resultPath, "utf8")), JSON.parse(outputs.split("\n").find(line => line.startsWith("result=")).slice(7)));
         }
         return {
             code,
@@ -185,6 +210,7 @@ test("the bundled action posts a sticky comment and passes when gates clear", as
     assert.ok(!state.comments[0]?.includes("+more"), "the comment does not embed raw diff content");
     assert.ok(state.comments[0]?.includes("No open findings"));
     assert.ok(result.outputs.includes("passed=true"), result.log);
+    assert.match(result.outputs, /result-path=/);
     assert.ok(result.summary.includes("JEV review"));
     assert.deepEqual(state.paths, ["/v1/systemone"]);
 });
@@ -299,6 +325,14 @@ test("manual dispatch reviews the requested open PR without overriding runner ev
     assert.equal(state.paths.length, 1);
     assert.match(result.outputs, /health=complete/);
 });
+test("the bundled Action recovers omitted GitHub patches before model review", async () => {
+    const state = { dangerProbability: 0.05, comments: [], paths: [], missingPatch: true };
+    const result = await runAction(state);
+    assert.equal(result.code, 0, result.log);
+    assert.equal(state.paths.length, 1);
+    assert.equal(state.comments.length, 1);
+    assert.match(result.outputs, /health=complete/);
+});
 test("manual dispatch refuses missing, malformed, and closed PRs before provider calls", async () => {
     for (const pr of ["", "0", "-3", "3/../../secrets", "3e0", "9007199254740993"]) {
         const state = { dangerProbability: 0, comments: [], paths: [] };
@@ -320,4 +354,13 @@ test("a PR event cannot be redirected to another PR by an input", async () => {
     assert.equal(result.code, 2, result.log);
     assert.equal(state.reads ?? 0, 0);
     assert.equal(state.comments.length, 0);
+});
+test("an unavailable optional artifact directory does not invalidate a completed review", async () => {
+    const state = { dangerProbability: 0.05, comments: [], paths: [] };
+    const result = await runAction(state, { badTemp: true });
+    assert.equal(result.code, 0, result.log);
+    assert.match(result.outputs, /passed=true/);
+    assert.doesNotMatch(result.outputs, /result-path=|passed=unavailable/);
+    assert.match(result.log, /optional JSON report file/);
+    assert.equal(state.comments.length, 1);
 });

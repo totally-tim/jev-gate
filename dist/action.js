@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { ConfigError, resolveConfig, validateConfigDocument, } from "./config.js";
 import { isMainModule } from "./entry.js";
 import { GitHubClient } from "./github.js";
 import { PROVIDER_ENV_KEYS } from "./jev.js";
+import { recoverPatches } from "./patch-recovery.js";
 import { renderComment, renderSummary } from "./render.js";
 import { finishOutcome, reviewExitCode, runReview } from "./review.js";
 import { applyOverrides, makeSnapshot } from "./snapshot.js";
@@ -51,17 +53,31 @@ function writeSummary(markdown) {
         return;
     appendFileSync(file, markdown);
 }
+function publishResult(result) {
+    const json = JSON.stringify(result);
+    setOutput("result", json);
+    if (process.env.RUNNER_TEMP) {
+        try {
+            const path = join(process.env.RUNNER_TEMP, `jev-gate-result-${randomUUID()}.json`);
+            writeFileSync(path, json, { mode: 0o600, flag: "wx" });
+            setOutput("result-path", path);
+        }
+        catch {
+            warn("Could not save the optional JSON report file; the result output remains available.");
+        }
+    }
+}
 function unavailableInput(message) {
     fail(message);
     setOutput("passed", "unavailable");
     setOutput("health", "unavailable");
     setOutput("status", "unavailable");
-    setOutput("result", JSON.stringify({
+    publishResult({
         schema: 2,
         health: "unavailable",
         status: "unavailable",
         error: { kind: "input", message },
-    }));
+    });
     return 2;
 }
 function readEvent() {
@@ -129,7 +145,7 @@ export async function runAction() {
     const pr = await client.getPullRequest(owner, repo, number);
     if (manual && pr.state !== "open")
         return unavailableInput("manual review requires an open pull request");
-    const files = await client.listChangedFiles(owner, repo, number);
+    let files = await client.listChangedFiles(owner, repo, number);
     const afterCollection = await client.getPullRequest(owner, repo, number);
     const sameRevision = (a, b) => a.headSha === b.headSha && a.baseSha === b.baseSha;
     const collectionWarnings = [];
@@ -165,6 +181,12 @@ export async function runAction() {
     }
     for (const message of configWarnings)
         warn(`config: ${message}`);
+    if (!collectionWarnings.length) {
+        files = await recoverPatches(client, pr, files, config.ignore);
+        const afterRecovery = await client.getPullRequest(owner, repo, number);
+        if (!sameRevision(pr, afterRecovery))
+            collectionWarnings.push("The PR changed during patch recovery. Rerun on the current revision.");
+    }
     const keyEnv = PROVIDER_ENV_KEYS[config.provider];
     const apiKey = getInput("api-key") || process.env[keyEnv] || "";
     const started = Date.now();
@@ -205,7 +227,7 @@ export async function runAction() {
     setOutput("health", outcome.health);
     setOutput("status", outcome.status);
     setOutput("failed-gates", outcome.failedGates.join(","));
-    setOutput("result", JSON.stringify(outcome));
+    publishResult(outcome);
     notice(`jev-gate reviewed ${outcome.decisions.length} rules in ${Date.now() - started} ms ` +
         `(model call ${Math.round(outcome.latencyMs)} ms, ${outcome.inputTokens} input tokens)`);
     return reviewExitCode(outcome);

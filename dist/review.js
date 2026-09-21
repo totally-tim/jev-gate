@@ -114,7 +114,7 @@ export async function runReview(input) {
         const coverage = {
             path: file.path,
             status: "unavailable",
-            reason: candidates.length ? null : "No textual patch was available",
+            reason: candidates.length ? null : (original.patchWarning ?? "No textual patch was available"),
             reviewedChunks: 0,
             totalChunks: candidates.length,
         };

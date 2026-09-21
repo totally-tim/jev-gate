@@ -66,6 +66,17 @@ an older moving tag has it.
 The Action reads PR data through GitHub's API. It does not check out or execute PR code.
 Configuration comes from the base commit. It verifies base and head revisions after collection
 and before publication, and updates only the expected GitHub Actions bot's sticky comment.
+When GitHub omits or truncates a patch, the Action reads the file at the PR head
+and merge base and reconstructs the diff with Git. It does not check out PR code.
+Recovery attempts at most 100 files, reads at most 2 MiB per file and 16 MiB of
+file content in total, and starts no more reads after two minutes. Each request
+also has a timeout. A pinned Git tree verifies that each path is a regular file;
+symlinks and submodules are not followed. Tree metadata is capped at 8 MiB per
+revision. Ignored current and previous paths are not fetched for recovery.
+Binary files, unsupported metadata-only
+changes, unavailable content, and exceeded limits remain explicit coverage gaps.
+The runner must have Git installed.
+
 The caller workflow cancels superseded runs. GitHub comments do not provide an atomic
 compare-and-update operation, so the revision in each result remains the authority.
 
@@ -92,6 +103,9 @@ preserves the estimate when images are unavailable. Regenerate the artwork with
 
 Oversized reports go to the workflow summary and `result` output.
 Outputs include `health`, `status`, `passed`, `failed-gates`, and the complete JSON `result`.
+The `result-path` output points to the same JSON under `RUNNER_TEMP`. Upload that
+file as a workflow artifact to preserve large assessments without putting
+report contents into a shell command or environment variable.
 `passed` is `unavailable` when review did not complete. Provider failures exit nonzero and
 update the comment when the PR revision remains current.
 
