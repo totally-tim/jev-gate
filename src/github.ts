@@ -20,6 +20,7 @@ interface GitHubFilePayload {
 }
 
 interface GitHubPullPayload {
+  state?: string;
   number: number;
   title: string;
   body: string | null;
@@ -84,6 +85,7 @@ export class GitHubClient {
       owner,
       repo,
       number: pull.number,
+      state: pull.state,
       title: pull.title,
       body: pull.body ?? "",
       author: pull.user?.login ?? "unknown",

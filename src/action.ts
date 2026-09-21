@@ -125,7 +125,8 @@ function checkedBoolean(name: string, fallback: boolean): boolean {
 
 export async function runAction(): Promise<number> {
   const eventName = process.env.GITHUB_EVENT_NAME ?? "";
-  if (eventName !== "pull_request" && eventName !== "pull_request_target") {
+  const manual = eventName === "workflow_dispatch";
+  if (eventName !== "pull_request" && eventName !== "pull_request_target" && !manual) {
     notice(`No PR review for event ${eventName || "(none)"}`);
     setOutput("status", "not-applicable");
     return 0;
@@ -133,7 +134,12 @@ export async function runAction(): Promise<number> {
   const event = readEvent();
   const repository =
     event.repository?.full_name ?? process.env.GITHUB_REPOSITORY ?? "";
-  const number = event.pull_request?.number;
+  const requested = getInput("pull-request");
+  if (manual && (!/^[1-9][0-9]*$/.test(requested) || !Number.isSafeInteger(Number(requested))))
+    return unavailableInput("workflow_dispatch requires a positive integer pull-request input");
+  const number = manual ? Number(requested) : event.pull_request?.number;
+  if (!manual && requested && requested !== String(number))
+    return unavailableInput("pull-request input must match the triggering PR");
   if (!repository || !number)
     throw new ConfigError("the event payload carries no pull request");
 
@@ -154,6 +160,8 @@ export async function runAction(): Promise<number> {
     process.env.GITHUB_API_URL ?? "https://api.github.com",
   );
   const pr = await client.getPullRequest(owner, repo, number);
+  if (manual && pr.state !== "open")
+    return unavailableInput("manual review requires an open pull request");
   const files = await client.listChangedFiles(owner, repo, number);
   const afterCollection = await client.getPullRequest(owner, repo, number);
   const sameRevision = (a: typeof pr, b: typeof pr) =>

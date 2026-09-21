@@ -20,6 +20,7 @@ const ACTION_BUNDLE = fileURLToPath(
 interface MockState {
   /** Probability Jev reports for danger-sensitive-area. */
   dangerProbability: number;
+  closed?: boolean;
   failProvider?: boolean;
   moveHead?: boolean;
   moveBeforePublication?: boolean;
@@ -89,6 +90,7 @@ function startMockServer(
           state.reads = (state.reads ?? 0) + 1;
           send(200, {
             number: 3,
+            state: state.closed ? "closed" : "open",
             title: "Change the login flow",
             body: "Swaps the auth path.",
             html_url: "https://example.test/o/r/pull/3",
@@ -165,7 +167,7 @@ function startMockServer(
 
 async function runAction(
   state: MockState,
-  options: { provider?: string; mode?: string; maxRequests?: string } = {},
+  options: { provider?: string; mode?: string; maxRequests?: string; event?: string; pr?: string } = {},
 ): Promise<{ code: number; outputs: string; summary: string; log: string }> {
   const mock = await startMockServer(state);
   try {
@@ -176,7 +178,7 @@ async function runAction(
     writeFileSync(
       eventPath,
       JSON.stringify({
-        pull_request: { number: 3 },
+        ...(options.event === "workflow_dispatch" ? {} : { pull_request: { number: 3 } }),
         repository: { full_name: "o/r" },
       }),
     );
@@ -188,7 +190,8 @@ async function runAction(
       const result = await execFileAsync(process.execPath, [ACTION_BUNDLE], {
         env: {
           ...process.env,
-          GITHUB_EVENT_NAME: "pull_request",
+          GITHUB_EVENT_NAME: options.event ?? "pull_request",
+          INPUT_PULL_REQUEST: options.pr ?? "",
           GITHUB_EVENT_PATH: eventPath,
           GITHUB_REPOSITORY: "o/r",
           GITHUB_API_URL: mock.url,
@@ -353,5 +356,38 @@ test("a changed PR head prevents model calls and publication of stale results", 
   const r = await runAction(state);
   assert.equal(r.code, 2, r.log);
   assert.equal(state.paths.length, 0);
+  assert.equal(state.comments.length, 0);
+});
+
+test("manual dispatch reviews the requested open PR without overriding runner event variables", async () => {
+  const state: MockState = { dangerProbability: 0.05, comments: [], paths: [] };
+  const result = await runAction(state, { event: "workflow_dispatch", pr: "3" });
+  assert.equal(result.code, 0, result.log);
+  assert.equal(state.comments.length, 1);
+  assert.equal(state.paths.length, 1);
+  assert.match(result.outputs, /health=complete/);
+});
+
+test("manual dispatch refuses missing, malformed, and closed PRs before provider calls", async () => {
+  for (const pr of ["", "0", "-3", "3/../../secrets", "3e0", "9007199254740993"]) {
+    const state: MockState = { dangerProbability: 0, comments: [], paths: [] };
+    const result = await runAction(state, { event: "workflow_dispatch", pr });
+    assert.equal(result.code, 2, result.log);
+    assert.equal(state.paths.length, 0);
+    assert.equal(state.comments.length, 0);
+    assert.equal(state.reads ?? 0, 0);
+  }
+  const state: MockState = { dangerProbability: 0, comments: [], paths: [], closed: true };
+  const result = await runAction(state, { event: "workflow_dispatch", pr: "3" });
+  assert.equal(result.code, 2, result.log);
+  assert.equal(state.paths.length, 0);
+  assert.equal(state.comments.length, 0);
+});
+
+test("a PR event cannot be redirected to another PR by an input", async () => {
+  const state: MockState = { dangerProbability: 0, comments: [], paths: [] };
+  const result = await runAction(state, { pr: "4" });
+  assert.equal(result.code, 2, result.log);
+  assert.equal(state.reads ?? 0, 0);
   assert.equal(state.comments.length, 0);
 });
