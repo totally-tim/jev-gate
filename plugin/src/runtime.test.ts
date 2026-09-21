@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import plugin, { runProcess } from "./index.js";
 
 test("the plugin runtime invokes its CLI, injects current findings, and restores delivery state", async (t) => {
@@ -90,6 +91,24 @@ test(
       /timed out/,
     );
     const pid = Number(readFileSync(pidFile, "utf8"));
-    assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+    // Linux may retain a killed orphan as a zombie until its new parent reaps it.
+    // Assert termination, not the unrelated parent's reaping schedule.
+    const terminated = () => {
+      try {
+        process.kill(pid, 0);
+        if (process.platform === "linux") {
+          const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+          return stat.slice(stat.lastIndexOf(")") + 2).startsWith("Z ");
+        }
+        return false;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === "ESRCH" || code === "ENOENT") return true;
+        throw error;
+      }
+    };
+    const deadline = Date.now() + 2000;
+    while (!terminated() && Date.now() < deadline) await delay(20);
+    assert.ok(terminated(), `Descendant ${pid} still runs after timeout`);
   },
 );
