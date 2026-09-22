@@ -9,7 +9,9 @@ under the current screening policy, so this run does not support substituting it
 The [manifest](../samples/diagnostics.json) contains 12 hand-written cases: seven breaking
 changes and five compatible changes. Four cases belong to the tuning split and eight to
 the holdout split. Labels were written before either live run. No prompts or thresholds
-were changed after inspecting the results. Each model ran each case once.
+were changed after inspecting the results. The table reports one run per case after
+integration with the current local-model support on `main`. An earlier run produced
+the same outcome counts.
 
 The [runner](../scripts/evaluate-diagnostics.mjs) enables only `breaking-change`, with its
 existing 0.6 threshold. It captures a real screening response and replays that response
@@ -38,8 +40,8 @@ The runner checks model discovery before and after each evaluation.
 | Request failures or skipped diagnostics | 0 | 0 |
 | Actual provider requests | 30 | 25 |
 | Reported input tokens | 17,670 | 6,031 |
-| Median request duration | 329 ms | 2,045 ms |
-| Total evaluation duration | 10.82 seconds | 53.21 seconds |
+| Median request duration | 306 ms | 2,035 ms |
+| Total evaluation duration | 9.82 seconds | 47.09 seconds |
 
 On the eight holdout cases, Jev detected all five positives and flagged none of the three
 negatives. Kev detected one positive, missed four, and flagged no negatives. Diagnostic

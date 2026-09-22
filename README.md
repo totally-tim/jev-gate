@@ -296,6 +296,8 @@ cases. Build before running. The report retains endpoint, model discovery, input
 identities, raw observations, timing, and invariant checks. It replays each screening
 response into the diagnostic run to isolate the added stages. These small synthetic
 cases do not establish production precision or calibrate severity.
+The [September 22 comparison](docs/diagnostic-evaluation-2026-09-22.md) records the Jev
+and local Kev results and their limitations.
 
 ```sh
 npm ci
