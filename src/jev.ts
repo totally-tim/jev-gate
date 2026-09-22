@@ -10,8 +10,8 @@ import type { Provider } from "./types.js";
 /** Input price from the TypeSafe docs and the OpenRouter model page, read 2026-09-19. Output is free. */
 export const USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
 
-export const costUSD = (inputTokens: number): number =>
-  inputTokens * USD_PER_INPUT_TOKEN;
+export const costUSD = (inputTokens: number, model?: string): number =>
+  model === "local-decide" ? 0 : inputTokens * USD_PER_INPUT_TOKEN;
 
 /** Environment variable each provider reads when no api-key input is given. */
 export const PROVIDER_ENV_KEYS: Record<Provider, string> = {

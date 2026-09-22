@@ -7,7 +7,8 @@ import { ConfigError, DEFAULT_MODELS, resolveConfig, validateConfigDocument, } f
 import { localDiff } from "./gitdiff.js";
 import { parseUnifiedDiff } from "./diff.js";
 import { buildQuestions } from "./rules.js";
-export const STATE_VERSION = "candidate-v4";
+import { DIAGNOSTIC_POLICY } from "./diagnostics.js";
+export const STATE_VERSION = "candidate-v5";
 export const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 export function rulesHashFor(rules) {
     return hash(buildQuestions(rules.filter((r) => r.enabled))).slice(0, 16);
@@ -16,6 +17,7 @@ export function policyHashFor(config) {
     return hash({
         version: STATE_VERSION,
         questions: rulesHashFor(config.rules),
+        ...(config.diagnostics?.enabled ? { diagnostics: DIAGNOSTIC_POLICY } : {}),
         config,
     });
 }
@@ -194,6 +196,7 @@ export function parseSnapshot(text) {
         maxStateTokens: c.maxStateTokens,
         maxRequests: c.maxRequests,
         borderlineMargin: c.borderlineMargin,
+        diagnostics: c.diagnostics,
         ignore: c.ignore,
         comment: c.comment,
         openrouter: c.openrouter,

@@ -149,6 +149,7 @@ export interface FindingView {
   status: string;
   verification: string;
   category: string;
+  diagnostic?: { status: string; reason: string; verification?: string };
 }
 export interface OutcomeView {
   schema: 2;
@@ -194,7 +195,11 @@ export function parseOutcome(text: string): OutcomeView | null {
           f.startLine === null ||
           (Number.isInteger(f.startLine) && f.startLine > 0)
         ) ||
-        !["open", "accepted", "dismissed", "fixed"].includes(f.status)
+        !["open", "accepted", "dismissed", "fixed"].includes(f.status) ||
+        (f.diagnostic !== undefined && (!f.diagnostic ||
+          !["supported", "no-match", "no-issue", "insufficient-context", "skipped", "unavailable"].includes(f.diagnostic.status) ||
+          typeof f.diagnostic.reason !== "string" ||
+          (f.diagnostic.verification !== undefined && typeof f.diagnostic.verification !== "string")))
       )
         return null;
     return v;
@@ -217,6 +222,7 @@ export function formatBriefing(
   for (const f of findings.slice(0, 10))
     lines.push(
       `- ${f.rule} at ${JSON.stringify(f.path)}${f.startLine === null ? "" : `:${f.startLine}`} [${f.id}]: ${f.verification}`,
+      ...(f.diagnostic ? [`  Optional follow-up data: ${JSON.stringify({ status: f.diagnostic.status, reason: f.diagnostic.reason, verification: f.diagnostic.verification })}. This does not resolve the finding or independently verify it.`] : []),
     );
   if (findings.length > 10)
     lines.push(

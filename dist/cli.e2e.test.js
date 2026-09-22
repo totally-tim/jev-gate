@@ -21,9 +21,12 @@ async function fixture(t) {
         requests++;
         const answers = Object.fromEntries(Object.entries(body.questions).map(([name, q]) => [
             name,
-            q.type === "noul"
-                ? { type: "noul", noul: name === "breaking-change" ? 0.99 : 0.01 }
-                : { type: "score", score: 0, confidence: 1 },
+            q.type === "choice"
+                ? { type: "choice", choice: name === "evidence" ? "R1" : "api", confidence: 1,
+                    probabilities: Object.fromEntries(Object.keys(q.criteria).map(key => [key, key === (name === "evidence" ? "R1" : "api") ? 1 : 0])) }
+                : q.type === "noul"
+                    ? { type: "noul", noul: name === "breaking-change" ? 0.99 : 0.01 }
+                    : { type: "score", score: 0, confidence: 1, probabilities: { "0": 1, "1": 0, "2": 0, "3": 0 } },
         ]));
         res.setHeader("content-type", "application/json");
         res.end(JSON.stringify({
@@ -102,6 +105,19 @@ test("bundled CLI emits structured empty, malformed, and unavailable results", a
     assert.equal(missing.code, 2);
     assert.equal(JSON.parse(missing.stdout).health, "unavailable");
     assert.equal((await f.run("diff", "--mode", "required")).code, 2);
+});
+test("bundled CLI loads diagnostic policy and includes real follow-up stages in JSON and text", async (t) => {
+    const f = await fixture(t);
+    writeFileSync(join(f.dir, ".jev-gate.yml"), "provider: openrouter\nmode: required\ndiagnostics:\n  enabled: true\n");
+    const result = await f.run("review", "--diff", "change.diff", "--json");
+    assert.equal(result.code, 1);
+    const outcome = JSON.parse(result.stdout);
+    assert.equal(outcome.diagnostics.health, "complete");
+    assert.equal(outcome.findings[0].diagnostic.status, "supported");
+    assert.equal(f.requests(), 3);
+    const text = await f.run("review", "--diff", "change.diff");
+    assert.equal(text.code, 1);
+    assert.match(text.stdout, /Compatibility follow-up: supported/);
 });
 test("calibration rejects missing answers instead of reporting a clean evaluation", async (t) => {
     const f = await fixture(t);

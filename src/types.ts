@@ -51,6 +51,7 @@ export interface ConfigDocument {
   maxStateTokens?: number;
   maxRequests?: number;
   borderlineMargin?: number;
+  diagnostics?: { enabled?: boolean; maxRequests?: number };
   ignore?: string[];
   comment?: boolean;
   rules?: Record<string, RuleConfigOverride>;
@@ -66,6 +67,7 @@ export interface ResolvedConfig {
   maxStateTokens: number;
   maxRequests: number;
   borderlineMargin: number;
+  diagnostics: { enabled: boolean; maxRequests: number };
   ignore: readonly string[];
   comment: boolean;
   rules: readonly ResolvedRule[];
@@ -125,6 +127,21 @@ export interface Finding {
   source: "local" | "jev";
   status: "open" | "accepted" | "fixed" | "dismissed";
   disposition?: { reason: string; at: string };
+  diagnostic?: FindingDiagnostic;
+}
+export interface ChoiceObservation {
+  choice: string;
+  confidence: number;
+  probabilities: Record<string, number>;
+}
+export interface FindingDiagnostic {
+  status: "supported" | "no-match" | "no-issue" | "insufficient-context" | "skipped" | "unavailable";
+  reason: string;
+  selection?: ChoiceObservation;
+  evidence?: { startLine: number | null; endLine: number | null; side: "old" | "new"; patch: string };
+  mechanism?: ChoiceObservation;
+  impact?: { score: number; confidence: number; probabilities: Record<string, number>; max: 3 };
+  verification?: string;
 }
 export interface ReviewSnapshot {
   schema: 1;
@@ -166,6 +183,7 @@ export interface ReviewOutcome {
   failedGates: string[];
   erroredGates: string[];
   errors: string[];
+  diagnostics?: { version: string; health: "complete" | "partial"; eligible: number; completed: number; requests: number };
 }
 export interface ReviewState {
   pr: {

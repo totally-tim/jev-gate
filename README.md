@@ -119,6 +119,9 @@ mode: advisory
 maxStateTokens: 24000
 maxRequests: 64
 borderlineMargin: 0
+diagnostics:
+  enabled: false
+  maxRequests: 16
 comment: true
 rules:
   danger-sensitive-area:
@@ -133,8 +136,10 @@ rules:
 | `model` | `jev-1.13.0` | OpenRouter defaults to `typesafe/jev-1.13-20260917`. Defaults are pinned. |
 | `mode` | `advisory` | `required` enables configured blocking gates. Both modes report review errors. |
 | `maxStateTokens` | `24000` | Conservative UTF-8 byte bound on state, 2000 to 30000. |
-| `maxRequests` | `64` | Maximum logical provider calls per review, 1 to 500, including optional second observations. Provider retries can add network attempts. |
+| `maxRequests` | `64` | Maximum logical provider calls per review, 1 to 500, including repeated observations and diagnostics. Provider retries can add network attempts. |
 | `borderlineMargin` | `0` | Optional second observation for gated results near a threshold; 0 to 0.3. This is not independent corroboration. |
+| `diagnostics.enabled` | `false` | Add advisory evidence selection, mechanism classification, and impact scoring to compatibility findings. |
+| `diagnostics.maxRequests` | `16` | Additional cap on diagnostic calls, 1 to 500. These calls also consume `maxRequests`, after screening finishes. |
 | `ignore` | Generated files, dependencies, and lockfiles | Glob list replacing the defaults. Exclusions appear in coverage. |
 | `comment` | `true` | Publish the GitHub comment. |
 | `rules.<name>.enabled` | Rule default | Include the rule. |
@@ -163,9 +168,9 @@ The engine splits textual patches into bounded candidates and reviews every cand
 fits the configured budgets. Related implementation/test changes supply limited context.
 Later sections also receive up to 1,000 characters from the same file's diff opening, when the state
 budget permits. This keeps document purpose and module context visible after
-splitting; the opening is background, not an additional finding location. The `candidate-v4`
-state version invalidates older snapshots and finding IDs, so dispositions for
-older IDs must be reassessed.
+splitting; the opening is background, not an additional finding location. The `candidate-v5`
+state version includes diagnostic policy identity and invalidates older snapshots and finding
+IDs. Dispositions for older IDs must be reassessed.
 Locations identify the reviewed candidate, not an exact causal line. Missing callers and
 contracts still require a human or a reasoning model to investigate.
 
@@ -197,6 +202,32 @@ Recording a disposition invalidates cached assessments. Collect a fresh snapshot
 GitHub enforcement overrides follow repository branch-protection rules. Editing policy in
 the PR does not change the policy used to review that same PR.
 
+## Optional compatibility diagnostics
+
+Set `diagnostics.enabled: true` to follow up on `breaking-change` findings. The first
+call selects an evidence region or reports no match or missing context. The next call
+classifies the compatibility mechanism and estimates its impact on a 0-to-3 rubric.
+Code supplies a verification checklist for that mechanism. No second model is required.
+
+Diagnostics preserve the original findings, observations, and gate decisions. A `no-match`
+or `no-issue` answer is a disagreement to investigate; it does not dismiss the finding.
+`insufficient-context` records missing context or low selection confidence. `skipped`
+records a budget limit, and `unavailable` records a failed or malformed answer.
+The same model's follow-up is not independent confirmation. Confidence describes its
+answer distribution, not the probability that the finding is correct.
+
+Screening consumes the shared request budget first. Diagnostics then run sequentially,
+using at most two calls per finding and their own `diagnostics.maxRequests` cap. Each
+candidate retains all its lines in up to six regions of 12 diff lines. Larger candidates
+are skipped whole. Existing state limits and credential redaction still apply.
+Diagnostics use the collected diff context; they do not retrieve unseen callers or tests.
+
+JSON includes `finding.diagnostic` with the selected redacted patch, observations,
+impact, and verification step. CLI output, GitHub reports, and agent briefings show the
+follow-up result. `diagnostics.health` reports completion separately from review `health`.
+Optional diagnostic failures do not change exit codes; the original gate and coverage
+rules still determine them. Inspect both fields when diagnostics are enabled.
+
 ## Coding agents
 
 Any agent host can call `jev-gate review --json` after an edit batch or completed tests.
@@ -223,6 +254,25 @@ Unlabeled axes do not enter metrics. The small synthetic suite does not establis
 accuracy. Preserve independent data when using results to change rules.
 
 ## Development
+
+The [diagnostic evaluation runner](scripts/evaluate-diagnostics.mjs) compares screening and
+follow-up on [labeled synthetic cases](samples/diagnostics.json). It also probes cases that
+screen below the threshold. Supply an exact native `systemone` endpoint so a Gateway
+passthrough prefix does not gain an extra `/v1`:
+
+```sh
+TYPESAFE_API_KEY=... EVAL_MODEL=jev-1.13.0 \
+  EVAL_ENDPOINT=https://api.typesafe.ai/v1/systemone \
+  node scripts/evaluate-diagnostics.mjs > /tmp/diagnostics.json
+```
+
+For Kev, use the public model name `local-decide` and its native endpoint. The runner
+uses serial requests, a 60-second timeout, no retries, and model discovery before and
+after evaluation. `EVAL_SPLIT=tune|holdout` selects a split; `EVAL_REPEAT=1..10` repeats
+cases. Build before running. The report retains endpoint, model discovery, input and policy
+identities, raw observations, timing, and invariant checks. It replays each screening
+response into the diagnostic run to isolate the added stages. These small synthetic
+cases do not establish production precision or calibrate severity.
 
 ```sh
 npm ci

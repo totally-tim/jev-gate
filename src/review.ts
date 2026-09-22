@@ -9,6 +9,7 @@ import { costUSD, runJevReview, type JevReviewRequest } from "./jev.js";
 import { hash, rulesHashFor, STATE_VERSION } from "./snapshot.js";
 import { scanSecrets, redactText } from "./secrets.js";
 import { ConfigError } from "./config.js";
+import { diagnoseCompatibility, DiagnosticSkipped, DIAGNOSTIC_VERSION } from "./diagnostics.js";
 import type {
   Candidate,
   CoverageEntry,
@@ -17,7 +18,7 @@ import type {
   ReviewSnapshot,
   RuleDecision,
 } from "./types.js";
-import type { Fetch, RetryPolicy } from "@typesafe-ai/sdk";
+import type { Fetch, Questions, RetryPolicy } from "@typesafe-ai/sdk";
 export { rulesHashFor } from "./snapshot.js";
 export interface ReviewCoreInput {
   snapshot: ReviewSnapshot;
@@ -164,19 +165,12 @@ export async function runReview(
   let requests = 0,
     successful = 0,
     resolvedModel: string | undefined;
-  const decisionsFor = async (
-    candidate: Candidate,
-    rules: typeof enabled,
-  ): Promise<RuleDecision[]> => {
+  const requestAnswers = async (state: unknown, questions: Questions) => {
     if (!input.apiKey)
       throw new Error(`No API key is available for ${config.provider}`);
     if (input.signal?.aborted) throw new Error("Review cancelled");
     if (requests >= config.maxRequests)
       throw new Error(`Request budget of ${config.maxRequests} reached`);
-    const state = buildState(safePr, candidate, scanned.files);
-    // Optional context must not make an otherwise reviewable candidate exceed its budget.
-    if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
-      delete state.fileContext;
     if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
       throw new Error(
         "Candidate exceeds the state budget; its content was not sent",
@@ -187,7 +181,7 @@ export async function runReview(
       apiKey: input.apiKey,
       model: config.model,
       state,
-      questions: buildQuestions(rules),
+      questions,
       baseURL: input.baseURL,
       fetchImpl: input.fetchImpl,
       timeoutMs: input.timeoutMs,
@@ -205,8 +199,15 @@ export async function runReview(
       );
     resolvedModel = response.model;
     outcome.model = response.model;
+    return response.answers;
+  };
+  const decisionsFor = async (candidate: Candidate, rules: typeof enabled): Promise<RuleDecision[]> => {
+    const state = buildState(safePr, candidate, scanned.files);
+    // Optional context must not make an otherwise reviewable candidate exceed its budget.
+    if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens) delete state.fileContext;
+    const answers = await requestAnswers(state, buildQuestions(rules));
     const { patch: _, ...location } = candidate;
-    return evaluate(rules, response.answers, location);
+    return evaluate(rules, answers, location);
   };
   // Bounded parallelism keeps large reviews responsive and preserves deterministic output order.
   const results: Array<{ decisions: RuleDecision[]; error?: string }> =
@@ -260,6 +261,7 @@ export async function runReview(
   await Promise.all(
     Array.from({ length: Math.min(4, jobs.length) }, () => worker()),
   );
+  const findingCandidates = new Map<string, Candidate>();
   for (let index = 0; index < jobs.length; index++) {
     const { candidate, coverage } = jobs[index]!,
       result = results[index]!;
@@ -280,7 +282,7 @@ export async function runReview(
       (d) => d.exceeded && d.error === null,
     )) {
       const rule = enabled.find((r) => r.name === d.name)!;
-      outcome.findings.push({
+      const finding: Finding = {
         id: hash({
           rule: d.name,
           rules: ruleHash,
@@ -305,7 +307,9 @@ export async function runReview(
         kind: d.kind,
         source: "jev",
         status: "open",
-      });
+      };
+      outcome.findings.push(finding);
+      findingCandidates.set(finding.id, candidate);
     }
   }
   // Preserve the local secret rule's policy even if the remote provider is unavailable.
@@ -358,10 +362,34 @@ export async function runReview(
       outcome.decisions.filter((d) => d.gate && d.error).map((d) => d.name),
     ),
   ];
-  outcome.costUSD = costUSD(outcome.inputTokens);
   outcome.findings = [
     ...new Map(outcome.findings.map((f) => [f.id, f])).values(),
   ];
+  if (config.diagnostics.enabled) {
+    const findings = outcome.findings.filter(f => f.rule === "breaking-change" && f.source === "jev");
+    const summary: NonNullable<ReviewOutcome["diagnostics"]> = {
+      version: DIAGNOSTIC_VERSION, health: "complete", eligible: findings.length, completed: 0, requests: 0,
+    };
+    outcome.diagnostics = summary;
+    // Finish screening first. Follow-ups cannot consume another candidate's screening budget.
+    for (const finding of findings) {
+      const candidate = findingCandidates.get(finding.id)!;
+      const diagnostic = await diagnoseCompatibility(candidate, buildState(safePr, candidate, scanned.files), async (state, questions) => {
+        if (requests >= config.maxRequests || summary.requests >= config.diagnostics.maxRequests)
+          throw new DiagnosticSkipped("Diagnostic request budget exhausted; the original finding remains open");
+        if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
+          throw new DiagnosticSkipped("Diagnostic evidence exceeds the state budget; no evidence was clipped");
+        if (input.signal?.aborted) throw new Error("Review cancelled");
+        summary.requests++;
+        return requestAnswers(state, questions);
+      });
+      diagnostic.reason = redactText(diagnostic.reason);
+      finding.diagnostic = diagnostic;
+      if (diagnostic.status === "skipped" || diagnostic.status === "unavailable") summary.health = "partial";
+      else summary.completed++;
+    }
+  }
+  outcome.costUSD = costUSD(outcome.inputTokens, config.model);
   outcome.errors = [...new Set(outcome.errors)];
   return finishOutcome(outcome);
 }
