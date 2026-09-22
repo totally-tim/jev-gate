@@ -194,7 +194,7 @@ function renderBody(
   }
 
   const notes = [
-    ...files.filter(f => f.status !== "reviewed").map(f => `${f.path}: ${f.status}. ${f.reason ?? ""}`),
+    ...files.filter(f => f.status !== "reviewed" || f.reason).map(f => `${f.path}: ${f.status}. ${f.reason ?? ""}`),
     ...outcome.coverage.warnings, ...outcome.errors,
   ];
   if (notes.length) {
@@ -263,7 +263,7 @@ export function renderPlainTable(outcome: ReviewOutcome): string {
     "",
     `Coverage: ${outcome.coverage.files.filter((f) => f.status === "reviewed").length} reviewed / ${outcome.coverage.files.length} collected files.`,
   );
-  for (const f of outcome.coverage.files.filter((f) => f.status !== "reviewed"))
+  for (const f of outcome.coverage.files.filter((f) => f.status !== "reviewed" || f.reason))
     lines.push(`${f.status}: ${f.path}: ${f.reason}`);
   lines.push(...outcome.coverage.warnings, ...outcome.errors);
   return lines.join("\n");
