@@ -198,7 +198,7 @@ export function parseSnapshot(text) {
         maxStateTokens: c.maxStateTokens,
         maxRequests: c.maxRequests,
         borderlineMargin: c.borderlineMargin,
-        diagnostics: c.diagnostics,
+        ...(c.diagnostics !== undefined ? { diagnostics: c.diagnostics } : {}),
         ignore: c.ignore,
         comment: c.comment,
         openrouter: c.openrouter,

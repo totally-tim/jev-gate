@@ -33,7 +33,9 @@ const started = performance.now();
 for (const sample of samples) for (let run = 0; run < repeat; run++) {
   console.error(`${model}: ${sample.id} (${run + 1}/${repeat})`);
   let requests = 0, inputTokens = 0, outputTokens = 0;
+  let screeningPhase = "baseline", replayHits = 0, enrichedScreeningCalls = 0;
   const captured = new Map();
+  const replayOffsets = new Map();
   const timings = [];
   const transport = async (requestUrl, init) => {
     // The SDK appends /v1/systemone. Exact-URL routing supports versioned passthroughs
@@ -42,7 +44,17 @@ for (const sample of samples) for (let run = 0; run < repeat; run++) {
     const body = String(init.body);
     const parsed = JSON.parse(body);
     const screening = Object.hasOwn(parsed.questions, "breaking-change");
-    if (screening && captured.has(body)) return new Response(captured.get(body), { headers: { "content-type": "application/json" } });
+    if (screening && screeningPhase === "enriched") {
+      enrichedScreeningCalls++;
+      const offset = replayOffsets.get(body) ?? 0;
+      const recorded = captured.get(body)?.[offset];
+      if (recorded !== undefined) {
+        replayHits++;
+        replayOffsets.set(body, offset + 1);
+        return new Response(recorded, { headers: { "content-type": "application/json" } });
+      }
+      throw new Error("Enriched screening request did not match the captured baseline");
+    }
     requests++;
     const begin = performance.now();
     const response = await fetch(endpoint, { ...init, redirect: "error" });
@@ -53,7 +65,7 @@ for (const sample of samples) for (let run = 0; run < repeat; run++) {
       actualModels.add(result.model);
       inputTokens += result.usage?.input_tokens ?? 0;
       outputTokens += result.usage?.output_tokens ?? 0;
-      if (screening) captured.set(body, text);
+      if (screening) captured.set(body, [...(captured.get(body) ?? []), text]);
     }
     return new Response(text, { status: response.status, headers: { "content-type": "application/json" } });
   };
@@ -63,20 +75,23 @@ for (const sample of samples) for (let run = 0; run < repeat; run++) {
   const request = { apiKey, baseURL: url.origin, fetchImpl: transport, timeoutMs: 60_000, retry: { maxRetries: 0 } };
   const baseline = await runReview({ ...request, snapshot: baselineSnapshot });
   const diagnosticSnapshot = makeSnapshot(baselineSnapshot.pr, [file], { ...config, diagnostics: { enabled: true, maxRequests: 16 } }, "diagnostic-evaluation");
+  screeningPhase = "enriched";
   const enriched = await runReview({ ...request, snapshot: diagnosticSnapshot });
   let diagnostic = enriched.findings.find(f => f.rule === "breaking-change")?.diagnostic;
+  const diagnosticPath = diagnostic ? "finding" : "probe";
   // Probe baseline negatives too, so an early screening rejection cannot hide follow-up errors.
   if (!diagnostic && baseline.health === "complete") {
     const candidate = candidatesFor(file, 12_000)[0];
-    diagnostic = await diagnoseCompatibility(candidate, buildState(baselineSnapshot.pr, candidate, [file]), async (state, questions) => {
+    diagnostic = candidate ? await diagnoseCompatibility(candidate, buildState(baselineSnapshot.pr, candidate, [file]), async (state, questions) => {
       const response = await runJevReview({ ...request, provider: "typesafe", model, state, questions });
       if (response.model !== baseline.model) throw new Error("Model changed during diagnostic probe");
       return response.answers;
-    });
+    }) : { status: "unavailable", reason: "Evaluation case has no reviewable candidate" };
   }
   const invariants = hash(baseline.decisions) === hash(enriched.decisions) && reviewExitCode(baseline) === reviewExitCode(enriched) && hash(baseline.failedGates) === hash(enriched.failedGates);
   records.push({ sample: sample.id, split: sample.split, sampleHash: hash(sample), run, expected: sample.expected,
-    screeningReplayed: true, invariants, contentHash: baselineSnapshot.contentHash, baselinePolicy: baselineSnapshot.policyHash, diagnosticPolicy: diagnosticSnapshot.policyHash,
+    screeningReplayed: replayHits > 0 && replayHits === [...captured.values()].reduce((sum, values) => sum + values.length, 0) && replayHits === enrichedScreeningCalls, replayHits, enrichedScreeningCalls,
+    diagnosticPath, invariants, contentHash: baselineSnapshot.contentHash, baselinePolicy: baselineSnapshot.policyHash, diagnosticPolicy: diagnosticSnapshot.policyHash,
     screening: baseline.decisions, baselineHealth: baseline.health, diagnostic, errors: [...baseline.errors, ...enriched.errors],
     gateBefore: reviewExitCode(baseline), gateAfter: reviewExitCode(enriched), requests, inputTokens, outputTokens, requestMs: timings });
 }
@@ -102,7 +117,7 @@ const summarize = rows => {
   }
   return { cases: rows.length, screening, diagnostics };
 };
-const valid = modelStable && records.every(row => row.invariants && row.baselineHealth === "complete" && row.diagnostic && !["unavailable", "skipped"].includes(row.diagnostic.status));
+const valid = modelStable && records.every(row => row.screeningReplayed && row.invariants && row.baselineHealth === "complete" && row.diagnostic && !["unavailable", "skipped"].includes(row.diagnostic.status));
 console.log(JSON.stringify({ schema: 1, ranAt: new Date().toISOString(), requestedModel: model, resolvedModels: [...actualModels], endpoint, modelsBefore, modelsAfter, modelStable,
   manifestHash: hash(manifest), diagnosticPolicyHash: hash(DIAGNOSTIC_POLICY), repeat, valid,
   summary: summarize(records), holdout: summarize(records.filter(row => row.split === "holdout")),

@@ -243,6 +243,9 @@ Screening consumes the shared request budget first. Diagnostics then run sequent
 using at most two calls per finding and their own `diagnostics.maxRequests` cap. Each
 candidate retains all its lines in up to six regions of 12 diff lines. Larger candidates
 are skipped whole. Existing state limits and credential redaction still apply.
+With `local-decide`, screening can omit optional context to fit its smaller budget and
+reports that omission. Diagnostics retain the context and skip the candidate if it does
+not fit. A provider token-limit rejection is reported as `unavailable`.
 Diagnostics use the collected diff context; they do not retrieve unseen callers or tests.
 
 JSON includes `finding.diagnostic` with the selected redacted patch, observations,

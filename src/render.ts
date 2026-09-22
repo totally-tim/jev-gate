@@ -191,7 +191,7 @@ function renderBody(
       "<sub>Percentages are peak model estimates for a review question, not verified defect probabilities. A local match is a pattern detection, not a model estimate.</sub>", "");
   } else lines.push(outcome.health === "complete" ? "No open findings in the reviewed scope." : "No open findings were produced for the available scope.", "");
   lines.push(`Review health: **${outcome.health}** · ${reviewed} files reviewed · ${sections}/${total} change sections assessed${excluded || gaps ? ` · ${excluded} excluded · ${gaps} with gaps` : ""}`, "");
-  if (outcome.diagnostics) lines.push(`Optional compatibility follow-up: **${outcome.diagnostics.health}**; ${outcome.diagnostics.completed}/${outcome.diagnostics.eligible} findings assessed in ${outcome.diagnostics.requests} requests. Follow-up results do not change findings or gate decisions.`, "");
+  if (outcome.diagnostics) lines.push(`Optional compatibility follow-up: **${outcome.diagnostics.health}**; ${outcome.diagnostics.completed}/${outcome.diagnostics.eligible} findings assessed in ${outcome.diagnostics.requests} logical request attempts. Follow-up results do not change findings or gate decisions.`, "");
   if (topics.length && options.map) lines.push(fileMap(outcome, repository));
   const open = topics.reduce((sum, t) => sum + t.findings.length, 0);
   if (open > options.maxFindings) lines.push(`${open - options.maxFindings} additional findings are in the full workflow summary.`, "");

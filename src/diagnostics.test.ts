@@ -4,7 +4,7 @@ import { diagnoseCompatibility, diagnosticRegions, DIAGNOSTIC_POLICY } from "./d
 import { runReview, reviewExitCode } from "./review.js";
 import { file, snapshot, endpoint } from "./test-fixtures.js";
 import { buildState, candidatesFor } from "./state.js";
-import { parseSnapshot } from "./snapshot.js";
+import { parseSnapshot, policyHashFor } from "./snapshot.js";
 import { resolveConfig, validateConfigDocument } from "./config.js";
 import { renderComment, renderPlainTable, renderSummary } from "./render.js";
 import type { Fetch } from "@typesafe-ai/sdk";
@@ -47,6 +47,24 @@ test("diagnostics are opt-in, strictly validated, and included in snapshot ident
   const changed = structuredClone(s);
   changed.config.diagnostics.maxRequests++;
   assert.throws(() => parseSnapshot(JSON.stringify(changed)), /changed/);
+});
+
+test("stage-one criterion changes invalidate diagnostic snapshots", () => {
+  const s = snapshot([change], config);
+  const original = DIAGNOSTIC_POLICY.selectionCriteria.noMatch;
+  try {
+    DIAGNOSTIC_POLICY.selectionCriteria.noMatch = "Changed selection criterion";
+    assert.notEqual(policyHashFor(s.config), s.policyHash);
+    assert.throws(() => parseSnapshot(JSON.stringify(s)), /collect a fresh snapshot/);
+  } finally {
+    DIAGNOSTIC_POLICY.selectionCriteria.noMatch = original;
+  }
+});
+
+test("snapshots without diagnostics request recollection instead of reporting invalid config", () => {
+  const old = JSON.parse(JSON.stringify(snapshot([change])));
+  delete old.config.diagnostics;
+  assert.throws(() => parseSnapshot(JSON.stringify(old)), /collect a fresh snapshot/);
 });
 
 test("successful follow-up selects source evidence and impact without altering screening or gates", async () => {
@@ -151,6 +169,19 @@ test("diagnostic probability validation rejects NaN and unknown entries, tolerat
     const result = await diagnoseCompatibility(candidate, context, async () => ({ evidence: { type: "choice", choice: "noMatch", confidence: 0.9, probabilities } }));
     assert.equal(result.status, probabilities.R1 === 0.34 ? "no-match" : "unavailable");
   }
+});
+
+test("choice validation preserves distinct confidence but rejects a contradictory selected label", async () => {
+  const candidate = candidatesFor(change, 4000)[0]!;
+  const context = buildState(snapshot([change]).pr, candidate, [change]);
+  const probabilities = { R1: 0.2, noMatch: 0.73, insufficientContext: 0.07 };
+  const run = (choice: string) => diagnoseCompatibility(candidate, context, async () => ({
+    evidence: { type: "choice", choice, confidence: 0.59, probabilities },
+  }));
+  assert.equal((await run("noMatch")).status, "no-match");
+  const invalid = await run("R1");
+  assert.equal(invalid.status, "unavailable");
+  assert.match(invalid.reason, /contradicts/);
 });
 
 test("CLI and GitHub reports show diagnostic status, separate impact units, and escaped evidence", async () => {
