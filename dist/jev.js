@@ -1,7 +1,8 @@
 import { TypeSafeClient, } from "@typesafe-ai/sdk";
 /** Input price from the TypeSafe docs and the OpenRouter model page, read 2026-09-19. Output is free. */
 export const USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
-export const costUSD = (inputTokens, model) => model === "local-decide" ? 0 : inputTokens * USD_PER_INPUT_TOKEN;
+export const costUSD = (inputTokens) => inputTokens * USD_PER_INPUT_TOKEN;
+export const isLocalDecide = (provider, model) => provider === "typesafe" && model === "local-decide";
 /** Environment variable each provider reads when no api-key input is given. */
 export const PROVIDER_ENV_KEYS = {
     typesafe: "TYPESAFE_API_KEY",
@@ -33,10 +34,12 @@ export async function runJevReview(request) {
 async function runTypeSafe(request) {
     const client = new TypeSafeClient({
         apiKey: request.apiKey,
-        baseURL: request.baseURL,
+        baseURL: request.baseURL ?? process.env.TYPESAFE_BASE_URL ??
+            (isLocalDecide(request.provider, request.model)
+                ? "https://inference.svpg.dev/svpg/kev" : undefined),
         defaultModel: request.model,
         fetch: request.fetchImpl,
-        timeout: request.timeoutMs ?? 20_000,
+        timeout: request.timeoutMs ?? (isLocalDecide(request.provider, request.model) ? 60_000 : 20_000),
         retry: request.retry,
         logLevel: "off",
     });

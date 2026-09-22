@@ -23,7 +23,7 @@ function model(options: { selection?: string; mechanism?: string; confidence?: n
   return async (url, init) => {
     const body = JSON.parse(String(init?.body));
     calls.push(body);
-    if (body.questions["breaking-change"]) return screening(url, init);
+    if (!body.questions.evidence && !body.questions.mechanism) return screening(url, init);
     let answers: Record<string, unknown>;
     if (body.questions.evidence) {
       answers = { evidence: choiceAnswer(options.selection ?? "R1", Object.keys(body.questions.evidence.criteria), options.confidence) };
@@ -166,7 +166,22 @@ test("CLI and GitHub reports show diagnostic status, separate impact units, and 
 });
 
 test("local-decide is accounted as local inference", async () => {
-  const outcome = await review(model(), { model: "local-decide" });
+  const calls: any[] = [];
+  const outcome = await review(model({}, calls), { model: "local-decide" });
   assert.equal(outcome.costUSD, 0);
   assert.ok(outcome.inputTokens > 0);
+  assert.equal(outcome.health, "complete");
+  assert.equal(outcome.findings[0]!.diagnostic?.status, "supported");
+  assert.equal(calls.length, 7, "five native screening requests and two diagnostic requests");
+  assert.ok(calls.slice(0, 5).every(call => Object.keys(call.questions).length === 1));
+});
+
+test("local diagnostics disclose state-budget skips after screening omits oversized optional context", async () => {
+  const related = file("@@ -1 +1 @@\n+" + "test context ".repeat(180), "src/api.test.ts");
+  const outcome = await runReview({ snapshot: snapshot([change, related], { ...config, model: "local-decide" }), apiKey: "test", fetchImpl: model() });
+  const finding = outcome.findings.find(f => f.path === change.path)!;
+  assert.equal(finding.diagnostic?.status, "skipped");
+  assert.match(finding.diagnostic!.reason, /state budget/);
+  assert.match(outcome.coverage.files.find(f => f.path === change.path)!.reason!, /omitted related changes/);
+  assert.equal(outcome.diagnostics?.health, "partial");
 });

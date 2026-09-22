@@ -5,6 +5,93 @@ import { file, snapshot, endpoint } from "./test-fixtures.js";
 import { rulesHashFor, parseSnapshot } from "./snapshot.js";
 import { applyDispositions } from "./dispositions.js";
 import { RULE_DEFINITIONS } from "./rules.js";
+import { renderComment, renderPlainTable } from "./render.js";
+
+test("local-decide discloses omitted related context in JSON, comments, and terminal reports", async () => {
+  const input = snapshot([
+    file("@@ -1 +1 @@\n-old\n+new\n", "src/auth.ts"),
+    file("@@ -1 +1 @@\n+" + "related ".repeat(115), "src/auth.test.ts"),
+  ], { model: "local-decide" });
+  input.pr.body = "description ".repeat(100);
+  const calls: unknown[] = [];
+  const outcome = await runReview({ snapshot: input, apiKey: "test", fetchImpl: endpoint({}, calls) });
+  const coverage = outcome.coverage.files.find((entry) => entry.path === "src/auth.ts")!;
+  assert.equal(coverage.status, "reviewed");
+  assert.match(coverage.reason ?? "", /omitted related changes/);
+  assert.equal((coverage.reason?.match(/omitted related changes/g) ?? []).length, 1);
+  assert.match(renderComment(outcome, null), /omitted related changes/);
+  assert.match(renderPlainTable(outcome), /omitted related changes/);
+});
+
+test("local-decide reviews every rule serially with bounded state and zero hosted cost", async () => {
+  const calls: unknown[] = [];
+  let active = 0, peak = 0;
+  const respond = endpoint({}, calls);
+  const input = snapshot([
+    file("@@ -1 +1 @@\n-old\n+new\n", "src/auth.ts"),
+    file("@@ -1 +1 @@\n-old\n+test\n", "src/auth.test.ts"),
+  ], { model: "local-decide" });
+  // Large optional context must not make a small candidate unavailable.
+  input.pr.body = "description ".repeat(100);
+  const outcome = await runReview({
+    snapshot: input,
+    apiKey: "test",
+    fetchImpl: async (url, init) => {
+      active++;
+      peak = Math.max(peak, active);
+      const request = JSON.parse(String(init?.body));
+      assert.equal(request.model, "local-decide");
+      assert.equal(Object.keys(request.questions).length, 1);
+      assert.ok(Buffer.byteLength(JSON.stringify(request.state)) <= 2000);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      const response = await respond(url, init);
+      active--;
+      return response;
+    },
+  });
+  assert.equal(peak, 1);
+  assert.equal(calls.length, 10);
+  assert.equal(outcome.decisions.length, 10);
+  assert.equal(outcome.health, "complete");
+  assert.equal(outcome.inputTokens, 1000);
+  assert.equal(outcome.costUSD, 0);
+});
+
+test("local-decide counts individual rules against the request budget and retains findings", async () => {
+  const calls: unknown[] = [];
+  const outcome = await runReview({
+    snapshot: snapshot(undefined, { model: "local-decide", maxRequests: 1 }),
+    apiKey: "test",
+    fetchImpl: endpoint({ "danger-sensitive-area": 0.99 }, calls),
+  });
+  assert.equal(calls.length, 1);
+  assert.notEqual(outcome.health, "complete");
+  assert.equal(reviewExitCode(outcome, true), 2);
+  assert.equal(outcome.findings[0]?.rule, "danger-sensitive-area");
+  assert.ok(outcome.errors.some((error) => error.includes("Request budget of 1 reached")));
+  assert.equal(outcome.decisions.filter((d) => d.error).length, 4);
+});
+
+test("local-decide reports tokenizer rejections as gaps without hiding completed rules", async () => {
+  let calls = 0;
+  const respond = endpoint({ "danger-sensitive-area": 0.99 });
+  const outcome = await runReview({
+    snapshot: snapshot(undefined, { model: "local-decide" }),
+    apiKey: "test",
+    retry: { maxRetries: 0 },
+    fetchImpl: async (url, init) => {
+      if (++calls === 2) return new Response(JSON.stringify({
+        error: { message: "request exceeds the 1000 packed-token serving budget" },
+      }), { status: 400 });
+      return respond(url, init);
+    },
+  });
+  assert.equal(calls, 5);
+  assert.notEqual(outcome.health, "complete");
+  assert.equal(outcome.decisions.filter((d) => !d.error).length, 4);
+  assert.equal(outcome.findings[0]?.rule, "danger-sensitive-area");
+  assert.ok(outcome.errors.some((error) => error.includes("1000 packed-token")));
+});
 
 test("test-quality scoring is opt-in and documentation stays outside its scope", async () => {
   const defaults = await runReview({

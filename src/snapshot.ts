@@ -13,6 +13,7 @@ import { localDiff } from "./gitdiff.js";
 import { parseUnifiedDiff } from "./diff.js";
 import { buildQuestions } from "./rules.js";
 import { DIAGNOSTIC_POLICY } from "./diagnostics.js";
+import { isLocalDecide } from "./jev.js";
 import type {
   DiffFile,
   PullRequestContext,
@@ -29,6 +30,7 @@ export function rulesHashFor(rules: readonly ResolvedRule[]): string {
 export function policyHashFor(config: ResolvedConfig): string {
   return hash({
     version: STATE_VERSION,
+    ...(isLocalDecide(config.provider, config.model) ? { modelProfile: "local-decide-v1" } : {}),
     questions: rulesHashFor(config.rules),
     ...(config.diagnostics?.enabled ? { diagnostics: DIAGNOSTIC_POLICY } : {}),
     config,

@@ -79,3 +79,27 @@ test("an unknown provider is refused", async () => {
     /unknown provider/,
   );
 });
+
+test("local-decide uses the native gateway and keeps the requested model", async () => {
+  const saved = process.env.TYPESAFE_BASE_URL;
+  delete process.env.TYPESAFE_BASE_URL;
+  try {
+    let target = "";
+    const result = await runJevReview({
+      provider: "typesafe", apiKey: "test", model: "local-decide", state: "x", questions,
+      fetchImpl: async (url, init) => {
+        target = String(url);
+        assert.equal(JSON.parse(String(init?.body)).model, "local-decide");
+        return response(200, {
+          model: "kev-latest", answers: { urgent: { type: "noul", noul: 0.9 } },
+          usage: { input_tokens: 12, output_tokens: 0 },
+        });
+      },
+    });
+    assert.equal(target, "https://inference.svpg.dev/svpg/kev/v1/systemone");
+    assert.equal(result.model, "kev-latest");
+  } finally {
+    if (saved === undefined) delete process.env.TYPESAFE_BASE_URL;
+    else process.env.TYPESAFE_BASE_URL = saved;
+  }
+});
