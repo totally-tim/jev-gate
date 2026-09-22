@@ -9,6 +9,7 @@ import { costUSD, isLocalDecide, runJevReview, type JevReviewRequest } from "./j
 import { hash, rulesHashFor, STATE_VERSION } from "./snapshot.js";
 import { scanSecrets, redactText } from "./secrets.js";
 import { ConfigError } from "./config.js";
+import { diagnoseCompatibility, DiagnosticSkipped, DIAGNOSTIC_VERSION } from "./diagnostics.js";
 import type {
   Candidate,
   CoverageEntry,
@@ -17,7 +18,7 @@ import type {
   ReviewSnapshot,
   RuleDecision,
 } from "./types.js";
-import type { Fetch, RetryPolicy } from "@typesafe-ai/sdk";
+import type { Fetch, Questions, RetryPolicy } from "@typesafe-ai/sdk";
 export { rulesHashFor } from "./snapshot.js";
 export interface ReviewCoreInput {
   snapshot: ReviewSnapshot;
@@ -62,8 +63,7 @@ export async function runReview(
   const { snapshot } = input,
     { config, pr } = snapshot;
   const localDecide = isLocalDecide(config.provider, config.model);
-  // Leave room for one question within the native server's packed-token limit.
-  // Its tokenizer remains authoritative; rejected inputs are coverage gaps.
+  // Leave room for questions; the native tokenizer enforces the final packed limit.
   const stateBudget = localDecide ? Math.min(config.maxStateTokens, 2000) : config.maxStateTokens;
   const enabled = config.rules.filter((r) => r.enabled);
   if (!enabled.length) throw new ConfigError("no rules are enabled");
@@ -168,51 +168,12 @@ export async function runReview(
   let requests = 0,
     successful = 0,
     resolvedModel: string | undefined;
-  const decisionsFor = async (
-    candidate: Candidate,
-    rules: typeof enabled,
-    coverage: CoverageEntry,
-  ): Promise<RuleDecision[]> => {
-    if (localDecide && rules.length > 1) {
-      const decisions: RuleDecision[] = [];
-      for (const rule of rules) {
-        try {
-          decisions.push(...await decisionsFor(candidate, [rule], coverage));
-        } catch (error) {
-          const { patch: _, ...location } = candidate;
-          decisions.push(...evaluate([rule], {}, location).map((decision) => ({
-            ...decision,
-            error: redactText(error instanceof Error ? error.message : String(error)),
-          })));
-        }
-      }
-      return decisions;
-    }
+  const requestAnswers = async (state: unknown, questions: Questions) => {
     if (!input.apiKey)
       throw new Error(`No API key is available for ${config.provider}`);
     if (input.signal?.aborted) throw new Error("Review cancelled");
     if (requests >= config.maxRequests)
       throw new Error(`Request budget of ${config.maxRequests} reached`);
-    const state = buildState(safePr, candidate, scanned.files);
-    const omitted: string[] = [];
-    // Optional context must not make an otherwise reviewable candidate exceed its budget.
-    if (estimateTokens(JSON.stringify(state)) > stateBudget && state.fileContext) {
-      delete state.fileContext;
-      omitted.push("file opening");
-    }
-    if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget && state.relatedChanges?.length) {
-      state.relatedChanges = [];
-      omitted.push("related changes");
-    }
-    if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget && state.pr.description) {
-      state.pr.description = "";
-      omitted.push("PR description");
-    }
-    if (localDecide && omitted.length) {
-      const note = `Candidate ${candidate.startLine ?? "?"}-${candidate.endLine ?? "?"}: omitted ${omitted.join(", ")} to fit the local model; this context was not reviewed`;
-      if (!coverage.reason?.includes(note))
-        coverage.reason = [coverage.reason, note].filter(Boolean).join("; ");
-    }
     if (estimateTokens(JSON.stringify(state)) > stateBudget)
       throw new Error(
         "Candidate exceeds the state budget; its content was not sent",
@@ -223,7 +184,7 @@ export async function runReview(
       apiKey: input.apiKey,
       model: config.model,
       state,
-      questions: buildQuestions(rules),
+      questions,
       baseURL: input.baseURL,
       fetchImpl: input.fetchImpl,
       timeoutMs: input.timeoutMs,
@@ -241,8 +202,46 @@ export async function runReview(
       );
     resolvedModel = response.model;
     outcome.model = response.model;
+    return response.answers;
+  };
+  const decisionsFor = async (candidate: Candidate, rules: typeof enabled, coverage: CoverageEntry): Promise<RuleDecision[]> => {
+    if (localDecide && rules.length > 1) {
+      const decisions: RuleDecision[] = [];
+      for (const rule of rules) {
+        try {
+          decisions.push(...await decisionsFor(candidate, [rule], coverage));
+        } catch (error) {
+          const { patch: _, ...location } = candidate;
+          decisions.push(...evaluate([rule], {}, location).map((decision) => ({
+            ...decision,
+            error: redactText(error instanceof Error ? error.message : String(error)),
+          })));
+        }
+      }
+      return decisions;
+    }
+    const state = buildState(safePr, candidate, scanned.files);
+    const omitted: string[] = [];
+    if (estimateTokens(JSON.stringify(state)) > stateBudget && state.fileContext) {
+      delete state.fileContext;
+      omitted.push("file opening");
+    }
+    if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget && state.relatedChanges?.length) {
+      state.relatedChanges = [];
+      omitted.push("related changes");
+    }
+    if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget && state.pr.description) {
+      state.pr.description = "";
+      omitted.push("PR description");
+    }
+    if (localDecide && omitted.length) {
+      const note = `Candidate ${candidate.startLine ?? "?"}-${candidate.endLine ?? "?"}: omitted ${omitted.join(", ")} to fit the local model; this context was not reviewed`;
+      if (!coverage.reason?.includes(note))
+        coverage.reason = [coverage.reason, note].filter(Boolean).join("; ");
+    }
+    const answers = await requestAnswers(state, buildQuestions(rules));
     const { patch: _, ...location } = candidate;
-    return evaluate(rules, response.answers, location);
+    return evaluate(rules, answers, location);
   };
   // Bounded parallelism keeps large reviews responsive and preserves deterministic output order.
   const results: Array<{ decisions: RuleDecision[]; error?: string }> =
@@ -296,6 +295,7 @@ export async function runReview(
   await Promise.all(
     Array.from({ length: Math.min(localDecide ? 1 : 4, jobs.length) }, () => worker()),
   );
+  const findingCandidates = new Map<string, Candidate>();
   for (let index = 0; index < jobs.length; index++) {
     const { candidate, coverage } = jobs[index]!,
       result = results[index]!;
@@ -316,7 +316,7 @@ export async function runReview(
       (d) => d.exceeded && d.error === null,
     )) {
       const rule = enabled.find((r) => r.name === d.name)!;
-      outcome.findings.push({
+      const finding: Finding = {
         id: hash({
           rule: d.name,
           rules: ruleHash,
@@ -341,7 +341,9 @@ export async function runReview(
         kind: d.kind,
         source: "jev",
         status: "open",
-      });
+      };
+      outcome.findings.push(finding);
+      findingCandidates.set(finding.id, candidate);
     }
   }
   // Preserve the local secret rule's policy even if the remote provider is unavailable.
@@ -394,10 +396,34 @@ export async function runReview(
       outcome.decisions.filter((d) => d.gate && d.error).map((d) => d.name),
     ),
   ];
-  outcome.costUSD = localDecide ? 0 : costUSD(outcome.inputTokens);
   outcome.findings = [
     ...new Map(outcome.findings.map((f) => [f.id, f])).values(),
   ];
+  if (config.diagnostics.enabled) {
+    const findings = outcome.findings.filter(f => f.rule === "breaking-change" && f.source === "jev");
+    const summary: NonNullable<ReviewOutcome["diagnostics"]> = {
+      version: DIAGNOSTIC_VERSION, health: "complete", eligible: findings.length, completed: 0, requests: 0,
+    };
+    outcome.diagnostics = summary;
+    // Finish screening first. Follow-ups cannot consume another candidate's screening budget.
+    for (const finding of findings) {
+      const candidate = findingCandidates.get(finding.id)!;
+      const diagnostic = await diagnoseCompatibility(candidate, buildState(safePr, candidate, scanned.files), async (state, questions) => {
+        if (requests >= config.maxRequests || summary.requests >= config.diagnostics.maxRequests)
+          throw new DiagnosticSkipped("Diagnostic request budget exhausted; the original finding remains open");
+        if (estimateTokens(JSON.stringify(state)) > stateBudget)
+          throw new DiagnosticSkipped("Diagnostic evidence exceeds the state budget; no evidence was clipped");
+        if (input.signal?.aborted) throw new Error("Review cancelled");
+        summary.requests++;
+        return requestAnswers(state, questions);
+      });
+      diagnostic.reason = redactText(diagnostic.reason);
+      finding.diagnostic = diagnostic;
+      if (diagnostic.status === "skipped" || diagnostic.status === "unavailable") summary.health = "partial";
+      else summary.completed++;
+    }
+  }
+  outcome.costUSD = localDecide ? 0 : costUSD(outcome.inputTokens);
   outcome.errors = [...new Set(outcome.errors)];
   return finishOutcome(outcome);
 }

@@ -32,6 +32,13 @@ Optional repeated observations retain both values. Their mean is a threshold inp
 answers from the same model do not supply independent verification. Errors in either
 observation remain visible.
 
+Optional compatibility diagnostics retain the original screening finding and its gate.
+They select a source region, classify a mechanism, and estimate impact. The diagnostic
+policy fingerprint includes the questions, criteria, confidence threshold, and region
+limits. A diagnostic disagreement is evidence for investigation, not a disposition.
+Missing context, skipped work, and provider failures have separate statuses. Evaluate
+both supported positives and rejected positives before changing any gate policy.
+
 Local acceptance records belong to the exact finding identity. GitHub loads configuration
 from the PR base commit. A policy edit inside a PR cannot override that PR's review. Use the
 repository's existing merge-approval process for an authorized exception.

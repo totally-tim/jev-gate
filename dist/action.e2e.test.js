@@ -37,9 +37,12 @@ function startMockServer(state) {
                             ? (state.breakingProbability ?? 0.05)
                             : 0.05;
                     answers[name] =
-                        question.type === "noul"
-                            ? { type: "noul", noul: value }
-                            : { type: "score", score: value * 2, confidence: 0.9 };
+                        question.type === "choice"
+                            ? { type: "choice", choice: name === "evidence" ? "R1" : "api", confidence: 1,
+                                probabilities: Object.fromEntries(Object.keys(question.criteria).map(key => [key, key === (name === "evidence" ? "R1" : "api") ? 1 : 0])) }
+                            : question.type === "noul"
+                                ? { type: "noul", noul: value }
+                                : { type: "score", score: value * 2, confidence: 0.9, probabilities: { "0": 1, "1": 0, "2": 0, "3": 0 } };
                 }
                 send(200, {
                     model: "jev-mock",
@@ -279,6 +282,15 @@ test("required mode blocks configured findings and advisory mode preserves them"
     assert.equal(r.code, 1, r.log);
     assert.ok(r.outputs.includes("health=complete"));
     assert.ok(r.outputs.includes("passed=false"));
+});
+test("the bundled Action uses base diagnostic policy and publishes follow-up without clearing its gate", async () => {
+    const state = { dangerProbability: 0, breakingProbability: 0.99, comments: [], paths: [], config: "diagnostics:\n  enabled: true\n" };
+    const result = await runAction(state, { mode: "required" });
+    assert.equal(result.code, 1, result.log);
+    assert.equal(state.paths.length, 3);
+    assert.match(result.outputs, /passed=false/);
+    assert.match(result.summary, /Compatibility follow-up: supported/);
+    assert.match(state.comments[0], /Optional compatibility follow-up: \*\*complete\*\*/);
 });
 test("a head change while locating the prior comment prevents publication", async () => {
     const state = {

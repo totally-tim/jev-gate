@@ -113,6 +113,20 @@ export function validateConfigDocument(raw, warnings = []) {
         else if (key === "openrouter") {
             doc.openrouter = readOpenRouterSettings(value);
         }
+        else if (key === "diagnostics") {
+            if (!isRecord(value))
+                throw new ConfigError("diagnostics must be a mapping");
+            const settings = {};
+            for (const [setting, raw] of Object.entries(value)) {
+                if (setting === "enabled" && typeof raw === "boolean")
+                    settings.enabled = raw;
+                else if (setting === "maxRequests" && typeof raw === "number" && Number.isInteger(raw) && raw >= 1 && raw <= 500)
+                    settings.maxRequests = raw;
+                else
+                    throw new ConfigError(`invalid diagnostics.${setting}; expected enabled (boolean) or maxRequests (integer 1 to 500)`);
+            }
+            doc.diagnostics = settings;
+        }
         else if (key === "model") {
             if (typeof value !== "string" || value.trim() === "")
                 throw new ConfigError("model must be a non-empty string");
@@ -184,6 +198,7 @@ export function resolveConfig(doc) {
         model: doc.model ?? DEFAULT_MODELS[doc.provider ?? "typesafe"],
         maxStateTokens: doc.maxStateTokens ?? DEFAULT_MAX_STATE_TOKENS,
         borderlineMargin: doc.borderlineMargin ?? DEFAULT_BORDERLINE_MARGIN,
+        diagnostics: { enabled: doc.diagnostics?.enabled ?? false, maxRequests: doc.diagnostics?.maxRequests ?? 16 },
         ignore: doc.ignore ?? DEFAULT_IGNORE,
         comment: doc.comment ?? true,
         rules,

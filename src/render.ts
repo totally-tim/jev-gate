@@ -106,6 +106,16 @@ function htmlLocation(f: Pick<Finding, "path" | "startLine" | "side">, outcome: 
   return url ? `<a href="${html(url)}">${html(label)}</a>` : html(label);
 }
 
+function diagnosticDetails(finding: Finding): string[] {
+  const d = finding.diagnostic;
+  if (!d) return [];
+  return [
+    `Compatibility follow-up: ${d.status}. ${d.reason}`,
+    ...(d.status === "supported" && d.mechanism && d.impact ? [`Mechanism: ${d.mechanism.choice}. Impact: ${d.impact.score.toFixed(2)} / ${d.impact.max} rubric score (confidence ${d.impact.confidence.toFixed(2)}).`] : []),
+    ...(d.verification ? [d.verification] : []),
+  ];
+}
+
 function topicRow(topic: ReviewTopic, outcome: ReviewOutcome, previous: ReviewOutcome | null, repository: string | undefined, limit: number): string {
   const first = topic.findings[0]!;
   const paths = [...new Set(topic.findings.map(f => f.path))];
@@ -117,7 +127,10 @@ function topicRow(topic: ReviewTopic, outcome: ReviewOutcome, previous: ReviewOu
     : peak ? `${estimateGraphic(peak, topic.rule === "danger-sensitive-area")}<br><sub>review&nbsp;at&nbsp;${html(thresholdLabel(peak))}</sub>` : "Estimate unavailable";
   const evidence = displayed.map(f => {
     const known = previous?.policyHash === outcome.policyHash && previous?.model === outcome.model && previous.findings.some(p => p.id === f.id);
-    return `<li>${htmlLocation(f, outcome, repository)}<br>${html(f.evidence)}<br><sub>${html(f.category)}; ${html(f.status)}${known ? "; existing" : ""}. Finding <code>${html(f.id)}</code>.</sub></li>`;
+    const diagnostic = diagnosticDetails(f).map(text => `<br>${html(text)}`).join("");
+    const selected = f.diagnostic?.evidence;
+    const evidenceLink = selected ? `<br>Selected region: ${htmlLocation({ path: f.path, startLine: selected.startLine, side: selected.side }, outcome, repository)}` : "";
+    return `<li>${htmlLocation(f, outcome, repository)}<br>${html(f.evidence)}${diagnostic}${evidenceLink}<br><sub>${html(f.category)}; ${html(f.status)}${known ? "; existing" : ""}. Finding <code>${html(f.id)}</code>.</sub></li>`;
   }).join("");
   const details = `<details><summary>${html(topicTitle(topic))}</summary><p>${html(first.verification)}</p>${topic.source === "local" ? "<p>Matched values are withheld from model requests and review output. Verify each match locally.</p>" : ""}<ul>${evidence}</ul>${displayed.length < topic.findings.length ? `<p>${topic.findings.length - displayed.length} more locations in the full report.</p>` : ""}</details>`;
   return `<tr><td><strong>${html(ruleLabel(topic.rule))}</strong><br><sub>${context}</sub></td><td align="center">${signal}</td><td>${details}<sub>${topic.findings.length} ${topic.source === "local" ? "location" : "signal"}${topic.findings.length === 1 ? "" : "s"}</sub></td></tr>`;
@@ -178,6 +191,7 @@ function renderBody(
       "<sub>Percentages are peak model estimates for a review question, not verified defect probabilities. A local match is a pattern detection, not a model estimate.</sub>", "");
   } else lines.push(outcome.health === "complete" ? "No open findings in the reviewed scope." : "No open findings were produced for the available scope.", "");
   lines.push(`Review health: **${outcome.health}** · ${reviewed} files reviewed · ${sections}/${total} change sections assessed${excluded || gaps ? ` · ${excluded} excluded · ${gaps} with gaps` : ""}`, "");
+  if (outcome.diagnostics) lines.push(`Optional compatibility follow-up: **${outcome.diagnostics.health}**; ${outcome.diagnostics.completed}/${outcome.diagnostics.eligible} findings assessed in ${outcome.diagnostics.requests} logical request attempts. Follow-up results do not change findings or gate decisions.`, "");
   if (topics.length && options.map) lines.push(fileMap(outcome, repository));
   const open = topics.reduce((sum, t) => sum + t.findings.length, 0);
   if (open > options.maxFindings) lines.push(`${open - options.maxFindings} additional findings are in the full workflow summary.`, "");
@@ -256,6 +270,7 @@ export function renderPlainTable(outcome: ReviewOutcome): string {
     lines.push(
       `${f.status} ${f.rule} ${f.path}${f.startLine === null ? "" : `:${f.startLine}`} [${f.id}]`,
       `  ${f.verification}`,
+      ...diagnosticDetails(f).map(text => `  ${text}`),
     );
   if (!outcome.findings.length)
     lines.push("No findings in the available scope.");
@@ -266,5 +281,6 @@ export function renderPlainTable(outcome: ReviewOutcome): string {
   for (const f of outcome.coverage.files.filter((f) => f.status !== "reviewed" || f.reason))
     lines.push(`${f.status}: ${f.path}: ${f.reason}`);
   lines.push(...outcome.coverage.warnings, ...outcome.errors);
+  if (outcome.diagnostics) lines.push(`Optional compatibility follow-up: ${outcome.diagnostics.health}; ${outcome.diagnostics.completed}/${outcome.diagnostics.eligible} findings assessed. Gate decisions are unchanged.`);
   return lines.join("\n");
 }

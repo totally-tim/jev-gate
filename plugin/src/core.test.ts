@@ -76,6 +76,17 @@ function fixture() {
     calls: () => calls,
   };
 }
+test("agent briefings preserve diagnostic abstention without resolving the finding", () => {
+  const review = outcome();
+  review.findings[0]!.diagnostic = { status: "no-issue", reason: "Migration supplied", verification: "Test an existing caller" };
+  const parsed = parseOutcome(JSON.stringify(review));
+  assert.ok(parsed);
+  assert.equal(parsed.findings[0]!.status, "open");
+  assert.match(formatBriefing(parsed)!, /no-issue/);
+  assert.match(formatBriefing(parsed)!, /does not resolve the finding/);
+  (review.findings[0]!.diagnostic as any).reason = 123;
+  assert.equal(parseOutcome(JSON.stringify(review)), null);
+});
 test("options accept argv arrays with paths containing spaces and reject invalid options", () => {
   const o = resolveOptions(
     { cli: ["node", "/a path/cli.cjs"], policySource: "base" },

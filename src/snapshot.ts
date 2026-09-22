@@ -12,6 +12,7 @@ import {
 import { localDiff } from "./gitdiff.js";
 import { parseUnifiedDiff } from "./diff.js";
 import { buildQuestions } from "./rules.js";
+import { DIAGNOSTIC_POLICY } from "./diagnostics.js";
 import { isLocalDecide } from "./jev.js";
 import type {
   DiffFile,
@@ -20,7 +21,7 @@ import type {
   ResolvedRule,
   ReviewSnapshot,
 } from "./types.js";
-export const STATE_VERSION = "candidate-v4";
+export const STATE_VERSION = "candidate-v5";
 export const hash = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 export function rulesHashFor(rules: readonly ResolvedRule[]): string {
@@ -31,6 +32,7 @@ export function policyHashFor(config: ResolvedConfig): string {
     version: STATE_VERSION,
     ...(isLocalDecide(config.provider, config.model) ? { modelProfile: "local-decide-v1" } : {}),
     questions: rulesHashFor(config.rules),
+    ...(config.diagnostics?.enabled ? { diagnostics: DIAGNOSTIC_POLICY } : {}),
     config,
   });
 }
@@ -270,6 +272,7 @@ export function parseSnapshot(text: string): ReviewSnapshot {
       maxStateTokens: c.maxStateTokens,
       maxRequests: c.maxRequests,
       borderlineMargin: c.borderlineMargin,
+      ...(c.diagnostics !== undefined ? { diagnostics: c.diagnostics } : {}),
       ignore: c.ignore,
       comment: c.comment,
       openrouter: c.openrouter,

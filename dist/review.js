@@ -4,6 +4,7 @@ import { costUSD, isLocalDecide, runJevReview } from "./jev.js";
 import { hash, rulesHashFor, STATE_VERSION } from "./snapshot.js";
 import { scanSecrets, redactText } from "./secrets.js";
 import { ConfigError } from "./config.js";
+import { diagnoseCompatibility, DiagnosticSkipped, DIAGNOSTIC_VERSION } from "./diagnostics.js";
 export { rulesHashFor } from "./snapshot.js";
 export function finishOutcome(outcome) {
     const active = outcome.findings.filter((f) => f.status === "open");
@@ -35,8 +36,7 @@ export function reviewExitCode(outcome, noGate = false) {
 export async function runReview(input) {
     const { snapshot } = input, { config, pr } = snapshot;
     const localDecide = isLocalDecide(config.provider, config.model);
-    // Leave room for one question within the native server's packed-token limit.
-    // Its tokenizer remains authoritative; rejected inputs are coverage gaps.
+    // Leave room for questions; the native tokenizer enforces the final packed limit.
     const stateBudget = localDecide ? Math.min(config.maxStateTokens, 2000) : config.maxStateTokens;
     const enabled = config.rules.filter((r) => r.enabled);
     if (!enabled.length)
@@ -127,6 +127,39 @@ export async function runReview(input) {
             jobs.push({ candidate, coverage, rules });
     }
     let requests = 0, successful = 0, resolvedModel;
+    const requestAnswers = async (state, questions) => {
+        if (!input.apiKey)
+            throw new Error(`No API key is available for ${config.provider}`);
+        if (input.signal?.aborted)
+            throw new Error("Review cancelled");
+        if (requests >= config.maxRequests)
+            throw new Error(`Request budget of ${config.maxRequests} reached`);
+        if (estimateTokens(JSON.stringify(state)) > stateBudget)
+            throw new Error("Candidate exceeds the state budget; its content was not sent");
+        requests++;
+        const request = {
+            provider: config.provider,
+            apiKey: input.apiKey,
+            model: config.model,
+            state,
+            questions,
+            baseURL: input.baseURL,
+            fetchImpl: input.fetchImpl,
+            timeoutMs: input.timeoutMs,
+            signal: input.signal,
+            retry: input.retry,
+            app: config.openrouter,
+        };
+        const response = await runJevReview(request);
+        outcome.inputTokens += response.inputTokens;
+        outcome.outputTokens += response.outputTokens;
+        outcome.latencyMs += response.latencyMs;
+        if (resolvedModel && response.model !== resolvedModel)
+            throw new Error("The provider changed models during this review; pin a model and retry");
+        resolvedModel = response.model;
+        outcome.model = response.model;
+        return response.answers;
+    };
     const decisionsFor = async (candidate, rules, coverage) => {
         if (localDecide && rules.length > 1) {
             const decisions = [];
@@ -144,15 +177,8 @@ export async function runReview(input) {
             }
             return decisions;
         }
-        if (!input.apiKey)
-            throw new Error(`No API key is available for ${config.provider}`);
-        if (input.signal?.aborted)
-            throw new Error("Review cancelled");
-        if (requests >= config.maxRequests)
-            throw new Error(`Request budget of ${config.maxRequests} reached`);
         const state = buildState(safePr, candidate, scanned.files);
         const omitted = [];
-        // Optional context must not make an otherwise reviewable candidate exceed its budget.
         if (estimateTokens(JSON.stringify(state)) > stateBudget && state.fileContext) {
             delete state.fileContext;
             omitted.push("file opening");
@@ -170,32 +196,9 @@ export async function runReview(input) {
             if (!coverage.reason?.includes(note))
                 coverage.reason = [coverage.reason, note].filter(Boolean).join("; ");
         }
-        if (estimateTokens(JSON.stringify(state)) > stateBudget)
-            throw new Error("Candidate exceeds the state budget; its content was not sent");
-        requests++;
-        const request = {
-            provider: config.provider,
-            apiKey: input.apiKey,
-            model: config.model,
-            state,
-            questions: buildQuestions(rules),
-            baseURL: input.baseURL,
-            fetchImpl: input.fetchImpl,
-            timeoutMs: input.timeoutMs,
-            signal: input.signal,
-            retry: input.retry,
-            app: config.openrouter,
-        };
-        const response = await runJevReview(request);
-        outcome.inputTokens += response.inputTokens;
-        outcome.outputTokens += response.outputTokens;
-        outcome.latencyMs += response.latencyMs;
-        if (resolvedModel && response.model !== resolvedModel)
-            throw new Error("The provider changed models during this review; pin a model and retry");
-        resolvedModel = response.model;
-        outcome.model = response.model;
+        const answers = await requestAnswers(state, buildQuestions(rules));
         const { patch: _, ...location } = candidate;
-        return evaluate(rules, response.answers, location);
+        return evaluate(rules, answers, location);
     };
     // Bounded parallelism keeps large reviews responsive and preserves deterministic output order.
     const results = new Array(jobs.length);
@@ -241,6 +244,7 @@ export async function runReview(input) {
         }
     };
     await Promise.all(Array.from({ length: Math.min(localDecide ? 1 : 4, jobs.length) }, () => worker()));
+    const findingCandidates = new Map();
     for (let index = 0; index < jobs.length; index++) {
         const { candidate, coverage } = jobs[index], result = results[index];
         outcome.decisions.push(...result.decisions);
@@ -259,7 +263,7 @@ export async function runReview(input) {
         }
         for (const d of result.decisions.filter((d) => d.exceeded && d.error === null)) {
             const rule = enabled.find((r) => r.name === d.name);
-            outcome.findings.push({
+            const finding = {
                 id: hash({
                     rule: d.name,
                     rules: ruleHash,
@@ -282,7 +286,9 @@ export async function runReview(input) {
                 kind: d.kind,
                 source: "jev",
                 status: "open",
-            });
+            };
+            outcome.findings.push(finding);
+            findingCandidates.set(finding.id, candidate);
         }
     }
     // Preserve the local secret rule's policy even if the remote provider is unavailable.
@@ -328,10 +334,37 @@ export async function runReview(input) {
     outcome.erroredGates = [
         ...new Set(outcome.decisions.filter((d) => d.gate && d.error).map((d) => d.name)),
     ];
-    outcome.costUSD = localDecide ? 0 : costUSD(outcome.inputTokens);
     outcome.findings = [
         ...new Map(outcome.findings.map((f) => [f.id, f])).values(),
     ];
+    if (config.diagnostics.enabled) {
+        const findings = outcome.findings.filter(f => f.rule === "breaking-change" && f.source === "jev");
+        const summary = {
+            version: DIAGNOSTIC_VERSION, health: "complete", eligible: findings.length, completed: 0, requests: 0,
+        };
+        outcome.diagnostics = summary;
+        // Finish screening first. Follow-ups cannot consume another candidate's screening budget.
+        for (const finding of findings) {
+            const candidate = findingCandidates.get(finding.id);
+            const diagnostic = await diagnoseCompatibility(candidate, buildState(safePr, candidate, scanned.files), async (state, questions) => {
+                if (requests >= config.maxRequests || summary.requests >= config.diagnostics.maxRequests)
+                    throw new DiagnosticSkipped("Diagnostic request budget exhausted; the original finding remains open");
+                if (estimateTokens(JSON.stringify(state)) > stateBudget)
+                    throw new DiagnosticSkipped("Diagnostic evidence exceeds the state budget; no evidence was clipped");
+                if (input.signal?.aborted)
+                    throw new Error("Review cancelled");
+                summary.requests++;
+                return requestAnswers(state, questions);
+            });
+            diagnostic.reason = redactText(diagnostic.reason);
+            finding.diagnostic = diagnostic;
+            if (diagnostic.status === "skipped" || diagnostic.status === "unavailable")
+                summary.health = "partial";
+            else
+                summary.completed++;
+        }
+    }
+    outcome.costUSD = localDecide ? 0 : costUSD(outcome.inputTokens);
     outcome.errors = [...new Set(outcome.errors)];
     return finishOutcome(outcome);
 }
