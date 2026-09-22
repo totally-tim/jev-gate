@@ -171,12 +171,13 @@ export async function runReview(
   const decisionsFor = async (
     candidate: Candidate,
     rules: typeof enabled,
+    coverage: CoverageEntry,
   ): Promise<RuleDecision[]> => {
     if (localDecide && rules.length > 1) {
       const decisions: RuleDecision[] = [];
       for (const rule of rules) {
         try {
-          decisions.push(...await decisionsFor(candidate, [rule]));
+          decisions.push(...await decisionsFor(candidate, [rule], coverage));
         } catch (error) {
           const { patch: _, ...location } = candidate;
           decisions.push(...evaluate([rule], {}, location).map((decision) => ({
@@ -193,13 +194,25 @@ export async function runReview(
     if (requests >= config.maxRequests)
       throw new Error(`Request budget of ${config.maxRequests} reached`);
     const state = buildState(safePr, candidate, scanned.files);
+    const omitted: string[] = [];
     // Optional context must not make an otherwise reviewable candidate exceed its budget.
-    if (estimateTokens(JSON.stringify(state)) > stateBudget)
+    if (estimateTokens(JSON.stringify(state)) > stateBudget && state.fileContext) {
       delete state.fileContext;
-    if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget)
+      omitted.push("file opening");
+    }
+    if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget && state.relatedChanges?.length) {
       state.relatedChanges = [];
-    if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget)
+      omitted.push("related changes");
+    }
+    if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget && state.pr.description) {
       state.pr.description = "";
+      omitted.push("PR description");
+    }
+    if (localDecide && omitted.length) {
+      const note = `Candidate ${candidate.startLine ?? "?"}-${candidate.endLine ?? "?"}: omitted ${omitted.join(", ")} to fit the local model; this context was not reviewed`;
+      if (!coverage.reason?.includes(note))
+        coverage.reason = [coverage.reason, note].filter(Boolean).join("; ");
+    }
     if (estimateTokens(JSON.stringify(state)) > stateBudget)
       throw new Error(
         "Candidate exceeds the state budget; its content was not sent",
@@ -238,9 +251,9 @@ export async function runReview(
   const worker = async () => {
     while (next < jobs.length) {
       const index = next++,
-        { candidate, rules } = jobs[index]!;
+        { candidate, rules, coverage } = jobs[index]!;
       try {
-        const decisions = await decisionsFor(candidate, rules);
+        const decisions = await decisionsFor(candidate, rules, coverage);
         const borderline = rules.filter(
           (r) =>
             r.gate &&
@@ -253,7 +266,7 @@ export async function runReview(
             ),
         );
         if (borderline.length) {
-          const second = await decisionsFor(candidate, borderline);
+          const second = await decisionsFor(candidate, borderline, coverage);
           for (const d of decisions) {
             const again = second.find((a) => a.name === d.name);
             if (!again) continue;

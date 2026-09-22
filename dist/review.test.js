@@ -5,6 +5,22 @@ import { file, snapshot, endpoint } from "./test-fixtures.js";
 import { rulesHashFor, parseSnapshot } from "./snapshot.js";
 import { applyDispositions } from "./dispositions.js";
 import { RULE_DEFINITIONS } from "./rules.js";
+import { renderComment, renderPlainTable } from "./render.js";
+test("local-decide discloses omitted related context in JSON, comments, and terminal reports", async () => {
+    const input = snapshot([
+        file("@@ -1 +1 @@\n-old\n+new\n", "src/auth.ts"),
+        file("@@ -1 +1 @@\n+" + "related ".repeat(115), "src/auth.test.ts"),
+    ], { model: "local-decide" });
+    input.pr.body = "description ".repeat(100);
+    const calls = [];
+    const outcome = await runReview({ snapshot: input, apiKey: "test", fetchImpl: endpoint({}, calls) });
+    const coverage = outcome.coverage.files.find((entry) => entry.path === "src/auth.ts");
+    assert.equal(coverage.status, "reviewed");
+    assert.match(coverage.reason ?? "", /omitted related changes/);
+    assert.equal((coverage.reason?.match(/omitted related changes/g) ?? []).length, 1);
+    assert.match(renderComment(outcome, null), /omitted related changes/);
+    assert.match(renderPlainTable(outcome), /omitted related changes/);
+});
 test("local-decide reviews every rule serially with bounded state and zero hosted cost", async () => {
     const calls = [];
     let active = 0, peak = 0;

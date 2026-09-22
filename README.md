@@ -160,6 +160,7 @@ including questions. JEV Gate sends each rule separately, processes candidates
 serially, splits patches around a 512-byte target, and limits state to 2,000
 bytes. It removes optional opening context, related changes, and the PR description
 when needed to fit the state budget. Oversized lines remain explicit coverage gaps.
+Coverage notes identify each candidate whose optional context was omitted.
 The server's tokenizer enforces the final request limit; a rejected request also
 remains a coverage gap. Every rule request counts against `maxRequests`, including
 second observations. The five default rules therefore need five requests per

@@ -161,7 +161,7 @@ function renderBody(outcome, previous, repository, reportUrl, options) {
             lines.push(`${gone.length} previous finding(s) are no longer present. This does not by itself verify a fix.`, "");
     }
     const notes = [
-        ...files.filter(f => f.status !== "reviewed").map(f => `${f.path}: ${f.status}. ${f.reason ?? ""}`),
+        ...files.filter(f => f.status !== "reviewed" || f.reason).map(f => `${f.path}: ${f.status}. ${f.reason ?? ""}`),
         ...outcome.coverage.warnings, ...outcome.errors,
     ];
     if (notes.length) {
@@ -219,7 +219,7 @@ export function renderPlainTable(outcome) {
     if (!outcome.findings.length)
         lines.push("No findings in the available scope.");
     lines.push("", `Coverage: ${outcome.coverage.files.filter((f) => f.status === "reviewed").length} reviewed / ${outcome.coverage.files.length} collected files.`);
-    for (const f of outcome.coverage.files.filter((f) => f.status !== "reviewed"))
+    for (const f of outcome.coverage.files.filter((f) => f.status !== "reviewed" || f.reason))
         lines.push(`${f.status}: ${f.path}: ${f.reason}`);
     lines.push(...outcome.coverage.warnings, ...outcome.errors);
     return lines.join("\n");
