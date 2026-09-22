@@ -147,6 +147,28 @@ The Action also accepts `provider`, `model`, `mode`, `config-path`, `max-state-t
 `timeout-ms`, `api-key`, `github-token`, and `comment` inputs. Unknown configuration keys and
 invalid CLI flags fail explicitly.
 
+### Local decisions through the SVPG Gateway
+
+Use `provider: typesafe` and `model: local-decide` with a Gateway key in
+`TYPESAFE_API_KEY`. The native endpoint defaults to
+`https://inference.svpg.dev/svpg/kev`; `TYPESAFE_BASE_URL` can override it.
+For the Action, pass the key through `api-key` and set `timeout-ms: 60000`.
+The CLI uses a 60-second timeout for this model.
+
+The local model accepts one request at a time and at most 1,000 packed tokens,
+including questions. JEV Gate sends each rule separately, processes candidates
+serially, splits patches around a 512-byte target, and limits state to 2,000
+bytes. It removes optional opening context, related changes, and the PR description
+when needed to fit the state budget. Oversized lines remain explicit coverage gaps.
+The server's tokenizer enforces the final request limit; a rejected request also
+remains a coverage gap. Every rule request counts against `maxRequests`, including
+second observations. The five default rules therefore need five requests per
+candidate. Set a budget appropriate to the expected diff size.
+
+Reports retain the server's resolved model name and record zero hosted cost.
+There is no hosted fallback. Local scores are advisory estimates and have not
+been calibrated against the hosted Jev model.
+
 ## Findings and coverage
 
 | Rule | Observation | Gate eligible by default |

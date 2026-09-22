@@ -251,6 +251,23 @@ async function runAction(
   }
 }
 
+test("bundled Action reviews with local-decide through the native endpoint", async () => {
+  const state: MockState = {
+    dangerProbability: 0.9,
+    config: "provider: typesafe\nmodel: local-decide\nmode: advisory\nmaxStateTokens: 2000\n",
+    comments: [], paths: [],
+  };
+  const result = await runAction(state, { event: "pull_request_target" });
+  assert.equal(result.code, 0, result.log);
+  assert.deepEqual(state.paths, Array(5).fill("/v1/systemone"));
+  const report = JSON.parse(result.outputs.split("\n").find((line) => line.startsWith("result="))!.slice(7));
+  assert.equal(report.health, "complete");
+  assert.equal(report.model, "jev-mock");
+  assert.equal(report.costUSD, 0);
+  assert.equal(report.decisions.length, 5);
+  assert.equal(state.comments.length, 1);
+});
+
 test("the bundled action posts a sticky comment and passes when gates clear", async () => {
   const state: MockState = { dangerProbability: 0.05, comments: [], paths: [] };
   const result = await runAction(state);

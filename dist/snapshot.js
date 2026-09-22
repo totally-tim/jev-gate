@@ -7,6 +7,7 @@ import { ConfigError, DEFAULT_MODELS, resolveConfig, validateConfigDocument, } f
 import { localDiff } from "./gitdiff.js";
 import { parseUnifiedDiff } from "./diff.js";
 import { buildQuestions } from "./rules.js";
+import { isLocalDecide } from "./jev.js";
 export const STATE_VERSION = "candidate-v4";
 export const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 export function rulesHashFor(rules) {
@@ -15,6 +16,7 @@ export function rulesHashFor(rules) {
 export function policyHashFor(config) {
     return hash({
         version: STATE_VERSION,
+        ...(isLocalDecide(config.provider, config.model) ? { modelProfile: "local-decide-v1" } : {}),
         questions: rulesHashFor(config.rules),
         config,
     });

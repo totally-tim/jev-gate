@@ -13,6 +13,9 @@ export const USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
 export const costUSD = (inputTokens: number): number =>
   inputTokens * USD_PER_INPUT_TOKEN;
 
+export const isLocalDecide = (provider: Provider, model: string): boolean =>
+  provider === "typesafe" && model === "local-decide";
+
 /** Environment variable each provider reads when no api-key input is given. */
 export const PROVIDER_ENV_KEYS: Record<Provider, string> = {
   typesafe: "TYPESAFE_API_KEY",
@@ -78,10 +81,12 @@ async function runTypeSafe(
 ): Promise<JevReviewResponse> {
   const client = new TypeSafeClient({
     apiKey: request.apiKey,
-    baseURL: request.baseURL,
+    baseURL: request.baseURL ?? process.env.TYPESAFE_BASE_URL ??
+      (isLocalDecide(request.provider, request.model)
+        ? "https://inference.svpg.dev/svpg/kev" : undefined),
     defaultModel: request.model,
     fetch: request.fetchImpl,
-    timeout: request.timeoutMs ?? 20_000,
+    timeout: request.timeoutMs ?? (isLocalDecide(request.provider, request.model) ? 60_000 : 20_000),
     retry: request.retry,
     logLevel: "off",
   });

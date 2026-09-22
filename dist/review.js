@@ -1,6 +1,6 @@
 import { buildQuestions, evaluate, rulesForPath } from "./rules.js";
 import { buildState, candidatesFor, estimateTokens, isIgnored, } from "./state.js";
-import { costUSD, runJevReview } from "./jev.js";
+import { costUSD, isLocalDecide, runJevReview } from "./jev.js";
 import { hash, rulesHashFor, STATE_VERSION } from "./snapshot.js";
 import { scanSecrets, redactText } from "./secrets.js";
 import { ConfigError } from "./config.js";
@@ -34,6 +34,10 @@ export function reviewExitCode(outcome, noGate = false) {
 }
 export async function runReview(input) {
     const { snapshot } = input, { config, pr } = snapshot;
+    const localDecide = isLocalDecide(config.provider, config.model);
+    // Leave room for one question within the native server's packed-token limit.
+    // Its tokenizer remains authoritative; rejected inputs are coverage gaps.
+    const stateBudget = localDecide ? Math.min(config.maxStateTokens, 2000) : config.maxStateTokens;
     const enabled = config.rules.filter((r) => r.enabled);
     if (!enabled.length)
         throw new ConfigError("no rules are enabled");
@@ -110,7 +114,7 @@ export async function runReview(input) {
             continue;
         }
         const file = safeFiles.get(original.path);
-        const candidates = candidatesFor(file, Math.max(512, Math.min(12_000, config.maxStateTokens - 2500)));
+        const candidates = candidatesFor(file, Math.max(512, Math.min(12_000, stateBudget - 2500)));
         const coverage = {
             path: file.path,
             status: "unavailable",
@@ -124,6 +128,22 @@ export async function runReview(input) {
     }
     let requests = 0, successful = 0, resolvedModel;
     const decisionsFor = async (candidate, rules) => {
+        if (localDecide && rules.length > 1) {
+            const decisions = [];
+            for (const rule of rules) {
+                try {
+                    decisions.push(...await decisionsFor(candidate, [rule]));
+                }
+                catch (error) {
+                    const { patch: _, ...location } = candidate;
+                    decisions.push(...evaluate([rule], {}, location).map((decision) => ({
+                        ...decision,
+                        error: redactText(error instanceof Error ? error.message : String(error)),
+                    })));
+                }
+            }
+            return decisions;
+        }
         if (!input.apiKey)
             throw new Error(`No API key is available for ${config.provider}`);
         if (input.signal?.aborted)
@@ -132,9 +152,13 @@ export async function runReview(input) {
             throw new Error(`Request budget of ${config.maxRequests} reached`);
         const state = buildState(safePr, candidate, scanned.files);
         // Optional context must not make an otherwise reviewable candidate exceed its budget.
-        if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
+        if (estimateTokens(JSON.stringify(state)) > stateBudget)
             delete state.fileContext;
-        if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
+        if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget)
+            state.relatedChanges = [];
+        if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget)
+            state.pr.description = "";
+        if (estimateTokens(JSON.stringify(state)) > stateBudget)
             throw new Error("Candidate exceeds the state budget; its content was not sent");
         requests++;
         const request = {
@@ -204,7 +228,7 @@ export async function runReview(input) {
             }
         }
     };
-    await Promise.all(Array.from({ length: Math.min(4, jobs.length) }, () => worker()));
+    await Promise.all(Array.from({ length: Math.min(localDecide ? 1 : 4, jobs.length) }, () => worker()));
     for (let index = 0; index < jobs.length; index++) {
         const { candidate, coverage } = jobs[index], result = results[index];
         outcome.decisions.push(...result.decisions);
@@ -292,7 +316,7 @@ export async function runReview(input) {
     outcome.erroredGates = [
         ...new Set(outcome.decisions.filter((d) => d.gate && d.error).map((d) => d.name)),
     ];
-    outcome.costUSD = costUSD(outcome.inputTokens);
+    outcome.costUSD = localDecide ? 0 : costUSD(outcome.inputTokens);
     outcome.findings = [
         ...new Map(outcome.findings.map((f) => [f.id, f])).values(),
     ];
