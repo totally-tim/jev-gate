@@ -63,8 +63,6 @@ export async function runReview(
   const { snapshot } = input,
     { config, pr } = snapshot;
   const localDecide = isLocalDecide(config.provider, config.model);
-  // Leave room for questions; the native tokenizer enforces the final packed limit.
-  const stateBudget = localDecide ? Math.min(config.maxStateTokens, 2000) : config.maxStateTokens;
   const enabled = config.rules.filter((r) => r.enabled);
   if (!enabled.length) throw new ConfigError("no rules are enabled");
   const ruleHash = rulesHashFor(enabled);
@@ -152,7 +150,7 @@ export async function runReview(
     const file = safeFiles.get(original.path)!;
     const candidates = candidatesFor(
       file,
-      Math.max(512, Math.min(12_000, stateBudget - 2500)),
+      Math.max(512, Math.min(12_000, config.maxStateTokens - 2500)),
     );
     const coverage: CoverageEntry = {
       path: file.path,
@@ -174,7 +172,7 @@ export async function runReview(
     if (input.signal?.aborted) throw new Error("Review cancelled");
     if (requests >= config.maxRequests)
       throw new Error(`Request budget of ${config.maxRequests} reached`);
-    if (estimateTokens(JSON.stringify(state)) > stateBudget)
+    if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
       throw new Error(
         "Candidate exceeds the state budget; its content was not sent",
       );
@@ -204,55 +202,27 @@ export async function runReview(
     outcome.model = response.model;
     return response.answers;
   };
-  const decisionsFor = async (candidate: Candidate, rules: typeof enabled, coverage: CoverageEntry): Promise<RuleDecision[]> => {
-    if (localDecide && rules.length > 1) {
-      const decisions: RuleDecision[] = [];
-      for (const rule of rules) {
-        try {
-          decisions.push(...await decisionsFor(candidate, [rule], coverage));
-        } catch (error) {
-          const { patch: _, ...location } = candidate;
-          decisions.push(...evaluate([rule], {}, location).map((decision) => ({
-            ...decision,
-            error: redactText(error instanceof Error ? error.message : String(error)),
-          })));
-        }
-      }
-      return decisions;
-    }
+  // One request carries every applicable rule; the rules test bounds how many questions that packs.
+  const decisionsFor = async (candidate: Candidate, rules: typeof enabled): Promise<RuleDecision[]> => {
     const state = buildState(safePr, candidate, scanned.files);
-    const omitted: string[] = [];
-    if (estimateTokens(JSON.stringify(state)) > stateBudget && state.fileContext) {
+    // Optional context must not make an otherwise reviewable candidate exceed its budget.
+    if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
       delete state.fileContext;
-      omitted.push("file opening");
-    }
-    if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget && state.relatedChanges?.length) {
-      state.relatedChanges = [];
-      omitted.push("related changes");
-    }
-    if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget && state.pr.description) {
-      state.pr.description = "";
-      omitted.push("PR description");
-    }
-    if (localDecide && omitted.length) {
-      const note = `Candidate ${candidate.startLine ?? "?"}-${candidate.endLine ?? "?"}: omitted ${omitted.join(", ")} to fit the local model; this context was not reviewed`;
-      if (!coverage.reason?.includes(note))
-        coverage.reason = [coverage.reason, note].filter(Boolean).join("; ");
-    }
     const answers = await requestAnswers(state, buildQuestions(rules));
     const { patch: _, ...location } = candidate;
     return evaluate(rules, answers, location);
   };
   // Bounded parallelism keeps large reviews responsive and preserves deterministic output order.
+  // Both providers answer 429 or 529 when saturated; the SDK retries those and honors Retry-After.
   const results: Array<{ decisions: RuleDecision[]; error?: string }> =
     new Array(jobs.length);
   let next = 0;
   const worker = async () => {
     while (next < jobs.length) {
       const index = next++,
-        { candidate, rules, coverage } = jobs[index]!;
+        { candidate, rules } = jobs[index]!;
       try {
-        const decisions = await decisionsFor(candidate, rules, coverage);
+        const decisions = await decisionsFor(candidate, rules);
         const borderline = rules.filter(
           (r) =>
             r.gate &&
@@ -265,7 +235,7 @@ export async function runReview(
             ),
         );
         if (borderline.length) {
-          const second = await decisionsFor(candidate, borderline, coverage);
+          const second = await decisionsFor(candidate, borderline);
           for (const d of decisions) {
             const again = second.find((a) => a.name === d.name);
             if (!again) continue;
@@ -293,7 +263,7 @@ export async function runReview(
     }
   };
   await Promise.all(
-    Array.from({ length: Math.min(localDecide ? 1 : 4, jobs.length) }, () => worker()),
+    Array.from({ length: Math.min(4, jobs.length) }, () => worker()),
   );
   const findingCandidates = new Map<string, Candidate>();
   for (let index = 0; index < jobs.length; index++) {
@@ -411,7 +381,7 @@ export async function runReview(
       const diagnostic = await diagnoseCompatibility(candidate, buildState(safePr, candidate, scanned.files), async (state, questions) => {
         if (requests >= config.maxRequests || summary.requests >= config.diagnostics.maxRequests)
           throw new DiagnosticSkipped("Diagnostic request budget exhausted; the original finding remains open");
-        if (estimateTokens(JSON.stringify(state)) > stateBudget)
+        if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
           throw new DiagnosticSkipped("Diagnostic evidence exceeds the state budget; no evidence was clipped");
         if (input.signal?.aborted) throw new Error("Review cancelled");
         summary.requests++;

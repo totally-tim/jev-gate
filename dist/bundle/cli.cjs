@@ -8477,6 +8477,7 @@ async function localDiff(explicitBase, cwd) {
 var USD_PER_INPUT_TOKEN = 0.042 / 1e6;
 var costUSD = (inputTokens) => inputTokens * USD_PER_INPUT_TOKEN;
 var isLocalDecide = (provider, model) => provider === "typesafe" && model === "local-decide";
+var LOCAL_DECIDE_BASE_URL = "https://inference.svpg.dev/svpg/decide";
 var PROVIDER_ENV_KEYS = {
   typesafe: "TYPESAFE_API_KEY",
   openrouter: "OPENROUTER_API_KEY"
@@ -8498,7 +8499,7 @@ async function runJevReview(request) {
 async function runTypeSafe(request) {
   const client = new TypeSafeClient({
     apiKey: request.apiKey,
-    baseURL: request.baseURL ?? process.env.TYPESAFE_BASE_URL ?? (isLocalDecide(request.provider, request.model) ? "https://inference.svpg.dev/svpg/kev" : void 0),
+    baseURL: request.baseURL ?? process.env.TYPESAFE_BASE_URL ?? (isLocalDecide(request.provider, request.model) ? LOCAL_DECIDE_BASE_URL : void 0),
     defaultModel: request.model,
     fetch: request.fetchImpl,
     timeout: request.timeoutMs ?? (isLocalDecide(request.provider, request.model) ? 6e4 : 2e4),
@@ -8899,7 +8900,7 @@ function rulesHashFor(rules) {
 function policyHashFor(config) {
   return hash({
     version: STATE_VERSION,
-    ...isLocalDecide(config.provider, config.model) ? { modelProfile: "local-decide-v1" } : {},
+    ...isLocalDecide(config.provider, config.model) ? { modelProfile: "local-decide-v2" } : {},
     questions: rulesHashFor(config.rules),
     ...config.diagnostics?.enabled ? { diagnostics: DIAGNOSTIC_POLICY } : {},
     config
@@ -9339,7 +9340,6 @@ function reviewExitCode(outcome, noGate = false) {
 async function runReview(input) {
   const { snapshot } = input, { config, pr } = snapshot;
   const localDecide = isLocalDecide(config.provider, config.model);
-  const stateBudget = localDecide ? Math.min(config.maxStateTokens, 2e3) : config.maxStateTokens;
   const enabled = config.rules.filter((r) => r.enabled);
   if (!enabled.length) throw new ConfigError("no rules are enabled");
   const ruleHash = rulesHashFor(enabled);
@@ -9421,7 +9421,7 @@ async function runReview(input) {
     const file = safeFiles.get(original.path);
     const candidates = candidatesFor(
       file,
-      Math.max(512, Math.min(12e3, stateBudget - 2500))
+      Math.max(512, Math.min(12e3, config.maxStateTokens - 2500))
     );
     const coverage = {
       path: file.path,
@@ -9441,7 +9441,7 @@ async function runReview(input) {
     if (input.signal?.aborted) throw new Error("Review cancelled");
     if (requests >= config.maxRequests)
       throw new Error(`Request budget of ${config.maxRequests} reached`);
-    if (estimateTokens(JSON.stringify(state)) > stateBudget)
+    if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
       throw new Error(
         "Candidate exceeds the state budget; its content was not sent"
       );
@@ -9471,41 +9471,10 @@ async function runReview(input) {
     outcome.model = response.model;
     return response.answers;
   };
-  const decisionsFor = async (candidate, rules, coverage) => {
-    if (localDecide && rules.length > 1) {
-      const decisions = [];
-      for (const rule of rules) {
-        try {
-          decisions.push(...await decisionsFor(candidate, [rule], coverage));
-        } catch (error) {
-          const { patch: _2, ...location2 } = candidate;
-          decisions.push(...evaluate([rule], {}, location2).map((decision) => ({
-            ...decision,
-            error: redactText(error instanceof Error ? error.message : String(error))
-          })));
-        }
-      }
-      return decisions;
-    }
+  const decisionsFor = async (candidate, rules) => {
     const state = buildState(safePr, candidate, scanned.files);
-    const omitted = [];
-    if (estimateTokens(JSON.stringify(state)) > stateBudget && state.fileContext) {
+    if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
       delete state.fileContext;
-      omitted.push("file opening");
-    }
-    if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget && state.relatedChanges?.length) {
-      state.relatedChanges = [];
-      omitted.push("related changes");
-    }
-    if (localDecide && estimateTokens(JSON.stringify(state)) > stateBudget && state.pr.description) {
-      state.pr.description = "";
-      omitted.push("PR description");
-    }
-    if (localDecide && omitted.length) {
-      const note = `Candidate ${candidate.startLine ?? "?"}-${candidate.endLine ?? "?"}: omitted ${omitted.join(", ")} to fit the local model; this context was not reviewed`;
-      if (!coverage.reason?.includes(note))
-        coverage.reason = [coverage.reason, note].filter(Boolean).join("; ");
-    }
     const answers = await requestAnswers(state, buildQuestions(rules));
     const { patch: _, ...location } = candidate;
     return evaluate(rules, answers, location);
@@ -9514,16 +9483,16 @@ async function runReview(input) {
   let next = 0;
   const worker = async () => {
     while (next < jobs.length) {
-      const index = next++, { candidate, rules, coverage } = jobs[index];
+      const index = next++, { candidate, rules } = jobs[index];
       try {
-        const decisions = await decisionsFor(candidate, rules, coverage);
+        const decisions = await decisionsFor(candidate, rules);
         const borderline = rules.filter(
           (r) => r.gate && config.borderlineMargin > 0 && decisions.some(
             (d) => d.name === r.name && d.value !== null && Math.abs(d.value - r.threshold) <= config.borderlineMargin
           )
         );
         if (borderline.length) {
-          const second = await decisionsFor(candidate, borderline, coverage);
+          const second = await decisionsFor(candidate, borderline);
           for (const d of decisions) {
             const again = second.find((a) => a.name === d.name);
             if (!again) continue;
@@ -9551,7 +9520,7 @@ async function runReview(input) {
     }
   };
   await Promise.all(
-    Array.from({ length: Math.min(localDecide ? 1 : 4, jobs.length) }, () => worker())
+    Array.from({ length: Math.min(4, jobs.length) }, () => worker())
   );
   const findingCandidates = /* @__PURE__ */ new Map();
   for (let index = 0; index < jobs.length; index++) {
@@ -9647,7 +9616,7 @@ async function runReview(input) {
       const diagnostic = await diagnoseCompatibility(candidate, buildState(safePr, candidate, scanned.files), async (state, questions) => {
         if (requests >= config.maxRequests || summary.requests >= config.diagnostics.maxRequests)
           throw new DiagnosticSkipped("Diagnostic request budget exhausted; the original finding remains open");
-        if (estimateTokens(JSON.stringify(state)) > stateBudget)
+        if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
           throw new DiagnosticSkipped("Diagnostic evidence exceeds the state budget; no evidence was clipped");
         if (input.signal?.aborted) throw new Error("Review cancelled");
         summary.requests++;

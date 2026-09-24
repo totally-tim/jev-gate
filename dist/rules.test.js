@@ -18,6 +18,11 @@ test("questions carry one entry per enabled rule", () => {
     assert.equal(questions["danger-sensitive-area"]?.type, "noul");
     assert.equal(questions["test-meaningfulness"]?.type, "score");
 });
+test("one request with every rule stays within local-decide's measured packing bound", () => {
+    // Eight questions per request matched single-question accuracy; 16 and 32 did not.
+    // A ninth rule needs split requests before local-decide can review it reliably.
+    assert.ok(Object.keys(buildQuestions(rules)).length <= 8);
+});
 test("noul decisions gate at the threshold", () => {
     const answers = Object.fromEntries(rules.map((rule) => [
         rule.name,

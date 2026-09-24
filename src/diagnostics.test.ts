@@ -203,16 +203,17 @@ test("local-decide is accounted as local inference", async () => {
   assert.ok(outcome.inputTokens > 0);
   assert.equal(outcome.health, "complete");
   assert.equal(outcome.findings[0]!.diagnostic?.status, "supported");
-  assert.equal(calls.length, 7, "five native screening requests and two diagnostic requests");
-  assert.ok(calls.slice(0, 5).every(call => Object.keys(call.questions).length === 1));
+  assert.equal(calls.length, 3, "one packed screening request and two diagnostic requests");
+  assert.equal(Object.keys(calls[0].questions).length, 5);
 });
 
-test("local diagnostics disclose state-budget skips after screening omits oversized optional context", async () => {
-  const related = file("@@ -1 +1 @@\n+" + "test context ".repeat(180), "src/api.test.ts");
-  const outcome = await runReview({ snapshot: snapshot([change, related], { ...config, model: "local-decide" }), apiKey: "test", fetchImpl: model() });
-  const finding = outcome.findings.find(f => f.path === change.path)!;
-  assert.equal(finding.diagnostic?.status, "skipped");
-  assert.match(finding.diagnostic!.reason, /state budget/);
-  assert.match(outcome.coverage.files.find(f => f.path === change.path)!.reason!, /omitted related changes/);
+test("diagnostics skip evidence that exceeds the state budget instead of clipping it", async () => {
+  // Screening drops the optional file opening to fit; diagnostics keep it and must skip.
+  const opening = Array.from({ length: 30 }, (_, i) => `+export const label${i} = "éééééééééééé";`).join("\n");
+  const patch = `@@ -1,1 +1,31 @@\n${opening}\n-export function read() { return 1; }\n+export function load() { return 1; }`;
+  const outcome = await runReview({ snapshot: snapshot([file(patch, "src/api.ts")], { ...config, maxStateTokens: 2000 }), apiKey: "test", fetchImpl: model() });
+  const skipped = outcome.findings.filter(f => f.diagnostic?.status === "skipped");
+  assert.ok(skipped.length > 0);
+  assert.match(skipped[0]!.diagnostic!.reason, /state budget/);
   assert.equal(outcome.diagnostics?.health, "partial");
 });

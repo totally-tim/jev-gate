@@ -156,24 +156,30 @@ invalid CLI flags fail explicitly.
 
 Use `provider: typesafe` and `model: local-decide` with a Gateway key in
 `TYPESAFE_API_KEY`. The native endpoint defaults to
-`https://inference.svpg.dev/svpg/kev`; `TYPESAFE_BASE_URL` can override it.
+`https://inference.svpg.dev/svpg/decide`; `TYPESAFE_BASE_URL` can override it.
 For the Action, pass the key through `api-key` and set `timeout-ms: 60000`.
 The CLI uses a 60-second timeout for this model.
 
-The local model accepts one request at a time and at most 1,000 packed tokens,
-including questions. JEV Gate sends each rule separately, processes candidates
-serially, splits patches around a 512-byte target, and limits state to 2,000
-bytes. It removes optional opening context, related changes, and the PR description
-when needed to fit the state budget. Oversized lines remain explicit coverage gaps.
-Coverage notes identify each candidate whose optional context was omitted.
-The server's tokenizer enforces the final request limit; a rejected request also
-remains a coverage gap. Every rule request counts against `maxRequests`, including
-second observations. The five default rules therefore need five requests per
-candidate. Set a budget appropriate to the expected diff size.
+The model serves hosted Jev's System One request and response contract, with a
+context of 131,072 tokens per request. JEV Gate reviews it the same way as hosted Jev.
+All rules for a candidate go in one request, up to four requests run at a time,
+and state uses the `maxStateTokens` budget. The five default rules therefore need
+one request per candidate. On a BoolQ set, requests with 8 questions scored 0.875
+and single-question requests scored 0.868. A test keeps the rule set at 8 questions
+or fewer.
+
+The server runs 32 requests at a time and queues up to 64 more for 2 seconds.
+A saturated server answers 429 with `Retry-After`, or 529 when overloaded. The
+client retries twice. It waits for a `Retry-After` delay of up to 60 seconds and
+uses its own shorter backoff for a longer one. A request above the context limit
+fails with `400 max_tokens_exceeded`, and JEV Gate reports that candidate as a
+coverage gap. Every request counts against `maxRequests`,
+including second observations.
 
 Reports retain the server's resolved model name and record zero hosted cost.
-There is no hosted fallback. Local scores are advisory estimates and have not
-been calibrated against the hosted Jev model.
+There is no hosted fallback. On public text the model scores about 3 points
+below hosted Jev. No one has calibrated its scores on JEV Gate's rules, so treat
+them as advisory estimates.
 
 ## Findings and coverage
 
@@ -243,9 +249,9 @@ Screening consumes the shared request budget first. Diagnostics then run sequent
 using at most two calls per finding and their own `diagnostics.maxRequests` cap. Each
 candidate retains all its lines in up to six regions of 12 diff lines. Larger candidates
 are skipped whole. Existing state limits and credential redaction still apply.
-With `local-decide`, screening can omit optional context to fit its smaller budget and
-reports that omission. Diagnostics retain the context and skip the candidate if it does
-not fit. A provider token-limit rejection is reported as `unavailable`.
+Screening can omit the optional file opening to fit the state budget. Diagnostics retain it
+and skip the candidate if it does not fit. A provider token-limit rejection is reported as
+`unavailable`.
 Diagnostics use the collected diff context; they do not retrieve unseen callers or tests.
 
 JSON includes `finding.diagnostic` with the selected redacted patch, observations,
@@ -292,7 +298,8 @@ TYPESAFE_API_KEY=... EVAL_MODEL=jev-1.13.0 \
   node scripts/evaluate-diagnostics.mjs > /tmp/diagnostics.json
 ```
 
-For Kev, use the public model name `local-decide` and its native endpoint. The runner
+For the SVPG model, set `EVAL_MODEL=local-decide` and
+`EVAL_ENDPOINT=https://inference.svpg.dev/svpg/decide/v1/systemone`. The runner
 uses serial requests, a 60-second timeout, no retries, and model discovery before and
 after evaluation. `EVAL_SPLIT=tune|holdout` selects a split; `EVAL_REPEAT=1..10` repeats
 cases. Build before running. The report retains endpoint, model discovery, input and policy
