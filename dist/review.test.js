@@ -49,7 +49,7 @@ test("local-decide retries 529 and 429 answers after their Retry-After delay", a
     const outcome = await runReview({
         snapshot: snapshot(undefined, { model: "local-decide" }),
         apiKey: "test",
-        // A server delay of zero must win over this backoff, or the test takes a minute.
+        // The one-second server delay must replace this backoff, or the test takes a minute.
         retry: { backoffInitialMs: 30_000, backoffMaxMs: 30_000 },
         fetchImpl: async (url, init) => {
             const status = [529, 429][statuses.length] ?? 200;
@@ -57,12 +57,13 @@ test("local-decide retries 529 and 429 answers after their Retry-After delay", a
             if (status !== 200)
                 return new Response(JSON.stringify({
                     error: { type: "overloaded_error", message: "busy" },
-                }), { status, headers: { "retry-after": "0" } });
+                }), { status, headers: { "retry-after": "1" } });
             return respond(url, init);
         },
     });
     assert.deepEqual(statuses, [529, 429, 200]);
-    assert.ok(performance.now() - started < 5000);
+    const elapsed = performance.now() - started;
+    assert.ok(elapsed >= 1900 && elapsed < 10_000, `waited ${elapsed} ms`);
     assert.equal(outcome.health, "complete");
     assert.equal(outcome.decisions.filter((d) => !d.error).length, 5);
 });

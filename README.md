@@ -170,9 +170,10 @@ or fewer.
 
 The server runs 32 requests at a time and queues up to 64 more for 2 seconds.
 A saturated server answers 429 with `Retry-After`, or 529 when overloaded. The
-client retries twice and waits for `Retry-After` when the server sends it. A request
-above the context limit fails with `400 max_tokens_exceeded`, and JEV Gate reports
-that candidate as a coverage gap. Every request counts against `maxRequests`,
+client retries twice. It waits for a `Retry-After` delay of up to 60 seconds and
+uses its own shorter backoff for a longer one. A request above the context limit
+fails with `400 max_tokens_exceeded`, and JEV Gate reports that candidate as a
+coverage gap. Every request counts against `maxRequests`,
 including second observations.
 
 Reports retain the server's resolved model name and record zero hosted cost.
