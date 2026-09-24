@@ -88,7 +88,7 @@ function distribution(value, keys) {
     if (Object.keys(values).length !== keys.length || keys.some(key => !unit(values[key])))
         throw new Error("Invalid diagnostic probability distribution");
     const sum = keys.reduce((total, key) => total + values[key], 0);
-    // Kev rounds probabilities to two decimals. Do not renormalize them.
+    // Jev and local-decide round probabilities to two decimals. Do not renormalize them.
     if (Math.abs(sum - 1) > 0.005 * keys.length + 0.000001)
         throw new Error("Invalid diagnostic probability total");
     return Object.fromEntries(keys.map(key => [key, values[key]]));

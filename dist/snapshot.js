@@ -17,7 +17,7 @@ export function rulesHashFor(rules) {
 export function policyHashFor(config) {
     return hash({
         version: STATE_VERSION,
-        ...(isLocalDecide(config.provider, config.model) ? { modelProfile: "local-decide-v1" } : {}),
+        ...(isLocalDecide(config.provider, config.model) ? { modelProfile: "local-decide-v2" } : {}),
         questions: rulesHashFor(config.rules),
         ...(config.diagnostics?.enabled ? { diagnostics: DIAGNOSTIC_POLICY } : {}),
         config,

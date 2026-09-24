@@ -75,13 +75,40 @@ test("local-decide uses the native gateway and keeps the requested model", async
                 target = String(url);
                 assert.equal(JSON.parse(String(init?.body)).model, "local-decide");
                 return response(200, {
-                    model: "kev-latest", answers: { urgent: { type: "noul", noul: 0.9 } },
+                    model: "decide-test", answers: { urgent: { type: "noul", noul: 0.9 } },
                     usage: { input_tokens: 12, output_tokens: 0 },
                 });
             },
         });
-        assert.equal(target, "https://inference.svpg.dev/svpg/kev/v1/systemone");
-        assert.equal(result.model, "kev-latest");
+        assert.equal(target, "https://inference.svpg.dev/svpg/decide/v1/systemone");
+        assert.equal(result.model, "decide-test");
+    }
+    finally {
+        if (saved === undefined)
+            delete process.env.TYPESAFE_BASE_URL;
+        else
+            process.env.TYPESAFE_BASE_URL = saved;
+    }
+});
+test("local-decide honors the base URL environment and an explicit base", async () => {
+    const saved = process.env.TYPESAFE_BASE_URL;
+    process.env.TYPESAFE_BASE_URL = "http://gateway.test/svpg/kev";
+    try {
+        const targets = [];
+        const fetchImpl = async (url) => {
+            targets.push(String(url));
+            return response(200, {
+                model: "decide-test", answers: { urgent: { type: "noul", noul: 0.9 } },
+                usage: { input_tokens: 12, output_tokens: 0 },
+            });
+        };
+        const local = { provider: "typesafe", apiKey: "test", model: "local-decide", state: "x", questions, fetchImpl };
+        await runJevReview(local);
+        await runJevReview({ ...local, baseURL: "http://explicit.test/decide" });
+        assert.deepEqual(targets, [
+            "http://gateway.test/svpg/kev/v1/systemone",
+            "http://explicit.test/decide/v1/systemone",
+        ]);
     }
     finally {
         if (saved === undefined)

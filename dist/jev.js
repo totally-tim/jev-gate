@@ -3,6 +3,8 @@ import { TypeSafeClient, } from "@typesafe-ai/sdk";
 export const USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
 export const costUSD = (inputTokens) => inputTokens * USD_PER_INPUT_TOKEN;
 export const isLocalDecide = (provider, model) => provider === "typesafe" && model === "local-decide";
+/** SVPG Gateway's native decisions route; `/svpg/kev` is an alias of the same service. */
+export const LOCAL_DECIDE_BASE_URL = "https://inference.svpg.dev/svpg/decide";
 /** Environment variable each provider reads when no api-key input is given. */
 export const PROVIDER_ENV_KEYS = {
     typesafe: "TYPESAFE_API_KEY",
@@ -36,7 +38,7 @@ async function runTypeSafe(request) {
         apiKey: request.apiKey,
         baseURL: request.baseURL ?? process.env.TYPESAFE_BASE_URL ??
             (isLocalDecide(request.provider, request.model)
-                ? "https://inference.svpg.dev/svpg/kev" : undefined),
+                ? LOCAL_DECIDE_BASE_URL : undefined),
         defaultModel: request.model,
         fetch: request.fetchImpl,
         timeout: request.timeoutMs ?? (isLocalDecide(request.provider, request.model) ? 60_000 : 20_000),
