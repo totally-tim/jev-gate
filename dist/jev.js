@@ -48,7 +48,7 @@ async function runTypeSafe(request) {
     const started = performance.now();
     const result = await client.systemOne({ state: request.state, questions: request.questions }, { signal: request.signal });
     return {
-        model: result.model,
+        model: typeof result.model === "string" ? result.model : request.model,
         returnedModel: typeof result.model === "string" && result.model.trim() ? result.model : undefined,
         answers: result.answers,
         inputTokens: result.usage.input_tokens,

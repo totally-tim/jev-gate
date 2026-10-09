@@ -4,7 +4,7 @@ import type { Fetch } from "@typesafe-ai/sdk";
 import { resolveConfig, rulesForReturnedModel, validateConfigDocument } from "./config.js";
 import { runReview, reviewExitCode } from "./review.js";
 import { parseSnapshot } from "./snapshot.js";
-import { renderSummary, renderPlainTable } from "./render.js";
+import { renderSummary, renderPlainTable, renderComment } from "./render.js";
 import { endpoint, file, snapshot } from "./test-fixtures.js";
 import type { ConfigDocument, ModelThresholdPolicy } from "./types.js";
 
@@ -70,15 +70,44 @@ test("Clef and unknown models follow the explicit unknown policy", async () => {
 });
 
 test("an omitted provider model ID cannot inherit the requested alias or its thresholds", async () => {
+  const credential = "ghp_" + "aB12".repeat(10);
   for (const provider of ["typesafe", "openrouter"] as const) {
     for (const unknown of ["unavailable", "base-thresholds"] as const) {
-      const result = await runReview({ snapshot: snapshot(undefined, {
+      const result = await runReview({ snapshot: snapshot([file(`@@ -1 +1 @@\n-old\n+const token = '${credential}';`)], {
         ...config, provider, model: b50, modelThresholds: { ...policy, unknown },
       }), apiKey: "test", fetchImpl: responseWithModel(undefined) });
       assert.equal(result.health, "unavailable");
       assert.equal(reviewExitCode(result), 2);
+      assert.ok(result.findings.some(f => f.source === "local" && f.rule === "danger-secret-material"));
+      assert.ok(result.failedGates.includes("danger-secret-material"));
+      for (const output of [renderSummary(result), renderComment(result, null)]) {
+        assert.match(output, /returned model ID/);
+        assert.ok(!output.includes(credential));
+      }
     }
   }
+});
+
+test("missing identity in a diagnostic follow-up leaves the finding and reports unavailable", async () => {
+  let calls = 0;
+  const result = await runReview({ snapshot: snapshot(undefined, {
+    ...config, provider: "openrouter", model: b50, diagnostics: { enabled: true },
+  }), apiKey: "test", fetchImpl: (url, init) => responseWithModel(calls++ ? undefined : b50, { "breaking-change": 0.8 })(url, init) });
+  assert.ok(calls > 1);
+  assert.equal(result.health, "complete");
+  assert.equal(result.findings.find(f => f.rule === "breaking-change")?.diagnostic?.status, "unavailable");
+  assert.equal(result.diagnostics?.health, "partial");
+});
+
+test("the size-limited comment retains the base-threshold fallback notice", async () => {
+  const result = await runReview({ snapshot: snapshot(undefined, {
+    ...config, modelThresholds: { ...policy, unknown: "base-thresholds" },
+  }), apiKey: "test", fetchImpl: responseWithModel("clef") });
+  result.coverage.warnings.push("Synthetic coverage note ".repeat(5000));
+  const comment = renderComment(result, null);
+  assert.ok(comment.length < 60_000);
+  assert.match(comment, /coverage notes exceed/);
+  assert.match(comment, /no fitted thresholds/);
 });
 
 test("borderline repeats use the selected threshold and preserve it", async () => {

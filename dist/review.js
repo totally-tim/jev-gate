@@ -152,6 +152,8 @@ export async function runReview(input) {
         outcome.inputTokens += response.inputTokens;
         outcome.outputTokens += response.outputTokens;
         outcome.latencyMs += response.latencyMs;
+        if (config.modelThresholds && !response.returnedModel)
+            throw new Error("Model thresholds require the provider's returned model ID");
         if (resolvedModel && response.model !== resolvedModel)
             throw new Error("The provider changed models during this review; pin a model and retry");
         resolvedModel = response.model;

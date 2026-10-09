@@ -8458,6 +8458,7 @@ function estimateGraphic(d, sensitive = false) {
 
 // src/render.ts
 var COMMENT_MARKER = "<!-- jev-gate:report -->";
+var BASE_THRESHOLD_NOTICE = "The returned model has no fitted thresholds in this policy. This review uses the configured base thresholds.";
 var DATA_OPEN = "<!-- jev-gate:data";
 var DATA_CLOSE = "-->";
 function parsePreviousOutcome(body) {
@@ -8633,6 +8634,7 @@ function renderBody(outcome, previous, repository, reportUrl, options) {
       `<summary>Individual model observations (${model.length})</summary>`,
       "",
       "Estimates describe the rule's question. They are not calibrated measures of defect likelihood.",
+      "Displayed percentages are rounded; decisions compare the exact values recorded in JSON.",
       "",
       "| Question | Location | Observation | Review threshold | Result |",
       "| --- | --- | --- | --- | --- |"
@@ -8658,7 +8660,7 @@ function renderBody(outcome, previous, repository, reportUrl, options) {
     ""
   );
   if (outcome.thresholdSource === "base-fallback")
-    lines.push("The returned model has no fitted thresholds in this policy. This review uses the configured base thresholds.", "");
+    lines.push(BASE_THRESHOLD_NOTICE, "");
   if (reportUrl) lines.push(workflowLink(reportUrl), "");
   return lines.join("\n");
 }
@@ -8684,13 +8686,16 @@ ${body}${footer}`;
 ${renderBody(outcome, previous, repository, reportUrl, { maxFindings, observations: false, map: false })}${footer}`;
     if (compact.length <= 6e4) return compact;
   }
+  const fallback = outcome.thresholdSource === "base-fallback" ? `
+${BASE_THRESHOLD_NOTICE}
+` : "";
   return `${COMMENT_MARKER}
 ### JEV review: ${outcome.status}
 
 Review health: ${outcome.health}. ${outcome.findings.length} findings. Snapshot \`${outcome.snapshotId}\`.
 
 The coverage notes exceed the comment size limit. ${workflowLink(reportUrl)} contains the full assessment.
-`;
+${fallback}`;
 }
 function renderSummary(outcome, repository) {
   return renderBody(outcome, null, repository, void 0, { maxFindings: outcome.findings.length, observations: true, map: true }) + "\n";
@@ -8916,7 +8921,7 @@ async function runTypeSafe(request) {
     { signal: request.signal }
   );
   return {
-    model: result.model,
+    model: typeof result.model === "string" ? result.model : request.model,
     returnedModel: typeof result.model === "string" && result.model.trim() ? result.model : void 0,
     answers: result.answers,
     inputTokens: result.usage.input_tokens,
@@ -9667,6 +9672,8 @@ async function runReview(input) {
     outcome.inputTokens += response.inputTokens;
     outcome.outputTokens += response.outputTokens;
     outcome.latencyMs += response.latencyMs;
+    if (config.modelThresholds && !response.returnedModel)
+      throw new Error("Model thresholds require the provider's returned model ID");
     if (resolvedModel && response.model !== resolvedModel)
       throw new Error(
         "The provider changed models during this review; pin a model and retry"

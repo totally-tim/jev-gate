@@ -8558,7 +8558,7 @@ async function runTypeSafe(request) {
     { signal: request.signal }
   );
   return {
-    model: result.model,
+    model: typeof result.model === "string" ? result.model : request.model,
     returnedModel: typeof result.model === "string" && result.model.trim() ? result.model : void 0,
     answers: result.answers,
     inputTokens: result.usage.input_tokens,
@@ -8662,6 +8662,7 @@ async function runOpenRouter(request) {
 }
 
 // src/render.ts
+var BASE_THRESHOLD_NOTICE = "The returned model has no fitted thresholds in this policy. This review uses the configured base thresholds.";
 function diagnosticDetails(finding) {
   const d = finding.diagnostic;
   if (!d) return [];
@@ -8694,7 +8695,7 @@ function renderPlainTable(outcome) {
     lines.push(`${f.status}: ${f.path}: ${f.reason}`);
   lines.push(...outcome.coverage.warnings, ...outcome.errors);
   if (outcome.thresholdSource === "base-fallback")
-    lines.push("The returned model has no fitted thresholds in this policy. This review uses the configured base thresholds.");
+    lines.push(BASE_THRESHOLD_NOTICE);
   if (outcome.diagnostics) lines.push(`Optional compatibility follow-up: ${outcome.diagnostics.health}; ${outcome.diagnostics.completed}/${outcome.diagnostics.eligible} findings assessed. Gate decisions are unchanged.`);
   return lines.join("\n");
 }
@@ -9514,6 +9515,8 @@ async function runReview(input) {
     outcome.inputTokens += response.inputTokens;
     outcome.outputTokens += response.outputTokens;
     outcome.latencyMs += response.latencyMs;
+    if (config.modelThresholds && !response.returnedModel)
+      throw new Error("Model thresholds require the provider's returned model ID");
     if (resolvedModel && response.model !== resolvedModel)
       throw new Error(
         "The provider changed models during this review; pin a model and retry"
