@@ -49,6 +49,7 @@ async function runTypeSafe(request) {
     const result = await client.systemOne({ state: request.state, questions: request.questions }, { signal: request.signal });
     return {
         model: result.model,
+        returnedModel: typeof result.model === "string" && result.model.trim() ? result.model : undefined,
         answers: result.answers,
         inputTokens: result.usage.input_tokens,
         outputTokens: result.usage.output_tokens,
@@ -137,6 +138,7 @@ async function runOpenRouter(request) {
         }
         return {
             model: typeof payload.model === "string" ? payload.model : request.model,
+            returnedModel: typeof payload.model === "string" && payload.model.trim() ? payload.model : undefined,
             answers: payload.answers,
             inputTokens: numberOr(payload.usage?.input_tokens ?? payload.usage?.prompt_tokens, 0),
             outputTokens: numberOr(payload.usage?.output_tokens ?? payload.usage?.completion_tokens, 0),

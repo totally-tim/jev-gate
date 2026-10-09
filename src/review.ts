@@ -8,7 +8,7 @@ import {
 import { costUSD, isLocalDecide, runJevReview, type JevReviewRequest } from "./jev.js";
 import { hash, rulesHashFor, STATE_VERSION } from "./snapshot.js";
 import { scanSecrets, redactText } from "./secrets.js";
-import { ConfigError } from "./config.js";
+import { ConfigError, rulesForReturnedModel } from "./config.js";
 import { diagnoseCompatibility, DiagnosticSkipped, DIAGNOSTIC_VERSION } from "./diagnostics.js";
 import type {
   Candidate,
@@ -200,7 +200,7 @@ export async function runReview(
       );
     resolvedModel = response.model;
     outcome.model = response.model;
-    return response.answers;
+    return response;
   };
   // One request carries every applicable rule; the rules test bounds how many questions that packs.
   const decisionsFor = async (candidate: Candidate, rules: typeof enabled): Promise<RuleDecision[]> => {
@@ -208,9 +208,12 @@ export async function runReview(
     // Optional context must not make an otherwise reviewable candidate exceed its budget.
     if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
       delete state.fileContext;
-    const answers = await requestAnswers(state, buildQuestions(rules));
+    const response = await requestAnswers(state, buildQuestions(rules));
+    const selected = rulesForReturnedModel(rules, config.modelThresholds, response.returnedModel);
+    if (config.modelThresholds && response.returnedModel) outcome.thresholdSource = Object.hasOwn(config.modelThresholds.models, response.returnedModel)
+      ? "returned-model" : "base-fallback";
     const { patch: _, ...location } = candidate;
-    return evaluate(rules, answers, location);
+    return evaluate(selected, response.answers, location);
   };
   // Bounded parallelism keeps large reviews responsive and preserves deterministic output order.
   // Both providers answer 429 or 529 when saturated; the SDK retries those and honors Retry-After.
@@ -231,7 +234,7 @@ export async function runReview(
               (d) =>
                 d.name === r.name &&
                 d.value !== null &&
-                Math.abs(d.value - r.threshold) <= config.borderlineMargin,
+                Math.abs(d.value - d.threshold) <= config.borderlineMargin,
             ),
         );
         if (borderline.length) {
@@ -385,7 +388,7 @@ export async function runReview(
           throw new DiagnosticSkipped("Diagnostic evidence exceeds the state budget; no evidence was clipped");
         if (input.signal?.aborted) throw new Error("Review cancelled");
         summary.requests++;
-        return requestAnswers(state, questions);
+        return (await requestAnswers(state, questions)).answers;
       });
       diagnostic.reason = redactText(diagnostic.reason);
       finding.diagnostic = diagnostic;

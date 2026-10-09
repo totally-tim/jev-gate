@@ -268,6 +268,7 @@ export function parseSnapshot(text: string): ReviewSnapshot {
     validateConfigDocument({
       provider: c.provider,
       model: c.model,
+      ...(c.modelThresholds !== undefined ? { modelThresholds: c.modelThresholds } : {}),
       mode: c.mode,
       maxStateTokens: c.maxStateTokens,
       maxRequests: c.maxRequests,

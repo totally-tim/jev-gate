@@ -197,6 +197,8 @@ function renderBody(outcome, previous, repository, reportUrl, options) {
         lines.push("", "</details>", "");
     }
     lines.push("<details>", "<summary>Run details</summary>", "", `- Reviewed head: ${escape(outcome.headSha || "uncommitted input")}.`, `- Snapshot: ${escape(outcome.snapshotId)}.`, `- Policy: ${escape(outcome.configSource)} (${outcome.mode}).`, `- Provider: ${escape(outcome.provider)}. Model: ${escape(outcome.model)}.`, `- Rules: ${escape(outcome.rulesHash)}.`, `- ${outcome.inputTokens} input tokens; estimated $${outcome.costUSD.toFixed(6)}; ${Math.round(outcome.latencyMs)} ms across model calls.`, "", "</details>", "");
+    if (outcome.thresholdSource === "base-fallback")
+        lines.push("The returned model has no fitted thresholds in this policy. This review uses the configured base thresholds.", "");
     if (reportUrl)
         lines.push(workflowLink(reportUrl), "");
     return lines.join("\n");
@@ -237,6 +239,8 @@ export function renderPlainTable(outcome) {
     for (const f of outcome.coverage.files.filter((f) => f.status !== "reviewed" || f.reason))
         lines.push(`${f.status}: ${f.path}: ${f.reason}`);
     lines.push(...outcome.coverage.warnings, ...outcome.errors);
+    if (outcome.thresholdSource === "base-fallback")
+        lines.push("The returned model has no fitted thresholds in this policy. This review uses the configured base thresholds.");
     if (outcome.diagnostics)
         lines.push(`Optional compatibility follow-up: ${outcome.diagnostics.health}; ${outcome.diagnostics.completed}/${outcome.diagnostics.eligible} findings assessed. Gate decisions are unchanged.`);
     return lines.join("\n");
