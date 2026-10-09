@@ -90,6 +90,17 @@ test("missing identity in a diagnostic follow-up leaves the finding and reports 
     assert.equal(result.findings.find(f => f.rule === "breaking-change")?.diagnostic?.status, "unavailable");
     assert.equal(result.diagnostics?.health, "partial");
 });
+test("without a policy an initially omitted ID does not become a requested-model change", async () => {
+    let calls = 0;
+    const result = await runReview({ snapshot: snapshot([
+            file(undefined, "src/a.ts"), file(undefined, "src/b.ts"),
+        ], { provider: "typesafe", model: "flex-decide" }), apiKey: "test",
+        fetchImpl: (url, init) => responseWithModel(calls++ ? b50 : undefined)(url, init) });
+    assert.equal(calls, 2);
+    assert.equal(result.health, "complete");
+    assert.equal(result.model, b50);
+    assert.equal(result.errors.length, 0);
+});
 test("the size-limited comment retains the base-threshold fallback notice", async () => {
     const result = await runReview({ snapshot: snapshot(undefined, {
             ...config, modelThresholds: { ...policy, unknown: "base-thresholds" },

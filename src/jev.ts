@@ -100,7 +100,7 @@ async function runTypeSafe(
     { signal: request.signal },
   );
   return {
-    model: typeof result.model === "string" ? result.model : request.model,
+    model: result.model,
     returnedModel: typeof result.model === "string" && result.model.trim() ? result.model : undefined,
     answers: result.answers as Record<string, unknown>,
     inputTokens: result.usage.input_tokens,
