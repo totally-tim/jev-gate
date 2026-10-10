@@ -3,7 +3,7 @@ import { buildState, candidatesFor, estimateTokens, isIgnored, } from "./state.j
 import { costUSD, isLocalDecide, runJevReview } from "./jev.js";
 import { hash, rulesHashFor, STATE_VERSION } from "./snapshot.js";
 import { scanSecrets, redactText } from "./secrets.js";
-import { ConfigError } from "./config.js";
+import { ConfigError, rulesForReturnedModel } from "./config.js";
 import { diagnoseCompatibility, DiagnosticSkipped, DIAGNOSTIC_VERSION } from "./diagnostics.js";
 export { rulesHashFor } from "./snapshot.js";
 export function finishOutcome(outcome) {
@@ -152,11 +152,13 @@ export async function runReview(input) {
         outcome.inputTokens += response.inputTokens;
         outcome.outputTokens += response.outputTokens;
         outcome.latencyMs += response.latencyMs;
+        if (config.modelThresholds && !response.returnedModel)
+            throw new Error("Model thresholds require the provider's returned model ID");
         if (resolvedModel && response.model !== resolvedModel)
             throw new Error("The provider changed models during this review; pin a model and retry");
         resolvedModel = response.model;
         outcome.model = response.model;
-        return response.answers;
+        return response;
     };
     // One request carries every applicable rule; the rules test bounds how many questions that packs.
     const decisionsFor = async (candidate, rules) => {
@@ -164,9 +166,13 @@ export async function runReview(input) {
         // Optional context must not make an otherwise reviewable candidate exceed its budget.
         if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
             delete state.fileContext;
-        const answers = await requestAnswers(state, buildQuestions(rules));
+        const response = await requestAnswers(state, buildQuestions(rules));
+        const selected = rulesForReturnedModel(rules, config.modelThresholds, response.returnedModel);
+        if (config.modelThresholds && response.returnedModel)
+            outcome.thresholdSource = Object.hasOwn(config.modelThresholds.models, response.returnedModel)
+                ? "returned-model" : "base-fallback";
         const { patch: _, ...location } = candidate;
-        return evaluate(rules, answers, location);
+        return evaluate(selected, response.answers, location);
     };
     // Bounded parallelism keeps large reviews responsive and preserves deterministic output order.
     // Both providers answer 429 or 529 when saturated; the SDK retries those and honors Retry-After.
@@ -181,7 +187,7 @@ export async function runReview(input) {
                     config.borderlineMargin > 0 &&
                     decisions.some((d) => d.name === r.name &&
                         d.value !== null &&
-                        Math.abs(d.value - r.threshold) <= config.borderlineMargin));
+                        Math.abs(d.value - d.threshold) <= config.borderlineMargin));
                 if (borderline.length) {
                     const second = await decisionsFor(candidate, borderline);
                     for (const d of decisions) {
@@ -323,7 +329,7 @@ export async function runReview(input) {
                 if (input.signal?.aborted)
                     throw new Error("Review cancelled");
                 summary.requests++;
-                return requestAnswers(state, questions);
+                return (await requestAnswers(state, questions)).answers;
             });
             diagnostic.reason = redactText(diagnostic.reason);
             finding.diagnostic = diagnostic;

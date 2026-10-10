@@ -145,12 +145,51 @@ rules:
 | `rules.<name>.enabled` | Rule default | Include the rule. |
 | `rules.<name>.gate` | Rule default | Make open findings block in required mode. |
 | `rules.<name>.threshold` | Rule default | Normalized observation threshold between 0 and 1. |
+| `modelThresholds` | None | Optional exact returned-model-ID tables. Every table must cover every enabled rule. |
 | `openrouter.referer`, `openrouter.title` | None | Optional provider attribution headers. |
 
 OpenRouter reads `OPENROUTER_API_KEY`. Set `provider: openrouter` or use `--provider openrouter`.
 The Action also accepts `provider`, `model`, `mode`, `config-path`, `max-state-tokens`, `max-requests`,
 `timeout-ms`, `api-key`, `github-token`, and `comment` inputs. Unknown configuration keys and
 invalid CLI flags fail explicitly.
+
+### Thresholds by returned model ID
+
+Set `modelThresholds` in the repository configuration when an endpoint can
+answer with different builds. The Action selects a table from the model ID in
+the provider response. The requested alias, such as `flex-decide`, does not
+select the table. Without this block, the existing rule thresholds apply.
+
+```yaml
+modelThresholds:
+  unknown: unavailable
+  models:
+    example-build-id:
+      danger-sensitive-area: 0.6
+      danger-deleted-tests: 0.6
+      danger-secret-material: 0.6
+      breaking-change: 0.6
+      comment-drift: 0.6
+```
+
+These example values are not a fitted policy. Copy fitted values without
+rounding. A result at or above the stored threshold requests review. Tables
+must include all enabled rules, including optional score rules if enabled.
+The snapshot policy hash includes the complete tables and the unknown-ID choice.
+Each decision records its selected threshold. Borderline repeats use that same
+threshold. Changing the table requires a new snapshot.
+
+Choose `unknown: unavailable` to reject answers from an unlisted model. Coverage
+is incomplete or unavailable, and the Action exits 2 even in advisory mode.
+Choose `unknown: base-thresholds` to evaluate an unlisted model using the
+configured rule thresholds. The comment, summary, and CLI report state that
+the returned model has no fitted thresholds in the policy. This choice does
+not establish that those thresholds are suitable for that model.
+
+A missing returned model ID makes the review unavailable under either choice.
+Answers from different model IDs within one review remain a review error.
+Local secret detection still runs if the provider or its threshold policy is
+unavailable. Model tables do not change rule questions or the local detector.
 
 ### Local decisions through the SVPG Gateway
 

@@ -58,6 +58,7 @@ export interface JevReviewRequest {
 
 export interface JevReviewResponse {
   model: string;
+  returnedModel?: string;
   answers: Record<string, unknown>;
   inputTokens: number;
   outputTokens: number;
@@ -100,6 +101,7 @@ async function runTypeSafe(
   );
   return {
     model: result.model,
+    returnedModel: typeof result.model === "string" && result.model.trim() ? result.model : undefined,
     answers: result.answers as Record<string, unknown>,
     inputTokens: result.usage.input_tokens,
     outputTokens: result.usage.output_tokens,
@@ -223,6 +225,7 @@ async function runOpenRouter(
     }
     return {
       model: typeof payload.model === "string" ? payload.model : request.model,
+      returnedModel: typeof payload.model === "string" && payload.model.trim() ? payload.model : undefined,
       answers: payload.answers as Record<string, unknown>,
       inputTokens: numberOr(
         payload.usage?.input_tokens ?? payload.usage?.prompt_tokens,

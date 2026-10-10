@@ -1,5 +1,6 @@
 import { concernMap, estimate, estimateGraphic, html, isModelDecision, peakDecision, REVIEW_ASSETS, reviewTopics, ruleLabel, thresholdLabel } from "./presentation.js";
 export const COMMENT_MARKER = "<!-- jev-gate:report -->";
+const BASE_THRESHOLD_NOTICE = "The returned model has no fitted thresholds in this policy. This review uses the configured base thresholds.";
 const DATA_OPEN = "<!-- jev-gate:data", DATA_CLOSE = "-->";
 export function parsePreviousOutcome(body) {
     const start = body.indexOf(DATA_OPEN), end = body.indexOf(DATA_CLOSE, start + DATA_OPEN.length);
@@ -189,7 +190,7 @@ function renderBody(outcome, previous, repository, reportUrl, options) {
     }
     if (options.observations) {
         const model = outcome.decisions.filter(isModelDecision);
-        lines.push("<details>", `<summary>Individual model observations (${model.length})</summary>`, "", "Estimates describe the rule's question. They are not calibrated measures of defect likelihood.", "", "| Question | Location | Observation | Review threshold | Result |", "| --- | --- | --- | --- | --- |");
+        lines.push("<details>", `<summary>Individual model observations (${model.length})</summary>`, "", "Estimates describe the rule's question. They are not calibrated measures of defect likelihood.", "Displayed percentages are rounded; decisions compare the exact values recorded in JSON.", "", "| Question | Location | Observation | Review threshold | Result |", "| --- | --- | --- | --- | --- |");
         for (const d of model) {
             const threshold = thresholdLabel(d);
             lines.push(`| ${escape(ruleLabel(d.name))} | ${location(d.candidate, outcome, repository)} | ${estimate(d)} | ${threshold} | ${d.error ? "unavailable" : d.exceeded ? "review requested" : "below threshold"} |`);
@@ -197,6 +198,8 @@ function renderBody(outcome, previous, repository, reportUrl, options) {
         lines.push("", "</details>", "");
     }
     lines.push("<details>", "<summary>Run details</summary>", "", `- Reviewed head: ${escape(outcome.headSha || "uncommitted input")}.`, `- Snapshot: ${escape(outcome.snapshotId)}.`, `- Policy: ${escape(outcome.configSource)} (${outcome.mode}).`, `- Provider: ${escape(outcome.provider)}. Model: ${escape(outcome.model)}.`, `- Rules: ${escape(outcome.rulesHash)}.`, `- ${outcome.inputTokens} input tokens; estimated $${outcome.costUSD.toFixed(6)}; ${Math.round(outcome.latencyMs)} ms across model calls.`, "", "</details>", "");
+    if (outcome.thresholdSource === "base-fallback")
+        lines.push(BASE_THRESHOLD_NOTICE, "");
     if (reportUrl)
         lines.push(workflowLink(reportUrl), "");
     return lines.join("\n");
@@ -217,7 +220,9 @@ export function renderComment(outcome, previous, repository, reportUrl) {
         if (compact.length <= 60_000)
             return compact;
     }
-    return `${COMMENT_MARKER}\n### JEV review: ${outcome.status}\n\nReview health: ${outcome.health}. ${outcome.findings.length} findings. Snapshot \`${outcome.snapshotId}\`.\n\nThe coverage notes exceed the comment size limit. ${workflowLink(reportUrl)} contains the full assessment.\n`;
+    const fallback = outcome.thresholdSource === "base-fallback"
+        ? `\n${BASE_THRESHOLD_NOTICE}\n` : "";
+    return `${COMMENT_MARKER}\n### JEV review: ${outcome.status}\n\nReview health: ${outcome.health}. ${outcome.findings.length} findings. Snapshot \`${outcome.snapshotId}\`.\n\nThe coverage notes exceed the comment size limit. ${workflowLink(reportUrl)} contains the full assessment.\n${fallback}`;
 }
 export function renderSummary(outcome, repository) {
     return renderBody(outcome, null, repository, undefined, { maxFindings: outcome.findings.length, observations: true, map: true }) + "\n";
@@ -237,6 +242,8 @@ export function renderPlainTable(outcome) {
     for (const f of outcome.coverage.files.filter((f) => f.status !== "reviewed" || f.reason))
         lines.push(`${f.status}: ${f.path}: ${f.reason}`);
     lines.push(...outcome.coverage.warnings, ...outcome.errors);
+    if (outcome.thresholdSource === "base-fallback")
+        lines.push(BASE_THRESHOLD_NOTICE);
     if (outcome.diagnostics)
         lines.push(`Optional compatibility follow-up: ${outcome.diagnostics.health}; ${outcome.diagnostics.completed}/${outcome.diagnostics.eligible} findings assessed. Gate decisions are unchanged.`);
     return lines.join("\n");

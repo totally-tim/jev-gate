@@ -44,9 +44,14 @@ export interface RuleConfigOverride {
   gate?: boolean;
   threshold?: number;
 }
+export interface ModelThresholdPolicy {
+  unknown: "unavailable" | "base-thresholds";
+  models: Readonly<Record<string, Readonly<Record<string, number>>>>;
+}
 export interface ConfigDocument {
   provider?: Provider;
   model?: string;
+  modelThresholds?: ModelThresholdPolicy;
   mode?: ReviewMode;
   maxStateTokens?: number;
   maxRequests?: number;
@@ -63,6 +68,7 @@ export interface ResolvedRule extends RuleDefinition {
 export interface ResolvedConfig {
   provider: Provider;
   model: string;
+  modelThresholds?: ModelThresholdPolicy;
   mode: ReviewMode;
   maxStateTokens: number;
   maxRequests: number;
@@ -183,6 +189,7 @@ export interface ReviewOutcome {
   failedGates: string[];
   erroredGates: string[];
   errors: string[];
+  thresholdSource?: "returned-model" | "base-fallback";
   diagnostics?: { version: string; health: "complete" | "partial"; eligible: number; completed: number; requests: number };
 }
 export interface ReviewState {

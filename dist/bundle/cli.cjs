@@ -8199,6 +8199,41 @@ function readRuleOverride(name, raw, warnings) {
   }
   return override;
 }
+function readModelThresholds(raw) {
+  if (!isRecord2(raw) || Object.keys(raw).some((key) => key !== "unknown" && key !== "models"))
+    throw new ConfigError("modelThresholds requires only unknown and models");
+  if (raw.unknown !== "unavailable" && raw.unknown !== "base-thresholds")
+    throw new ConfigError("modelThresholds.unknown must be unavailable or base-thresholds");
+  if (!isRecord2(raw.models) || !Object.keys(raw.models).length)
+    throw new ConfigError("modelThresholds.models must contain at least one exact returned model ID");
+  const knownRules = new Set(RULE_DEFINITIONS.map((rule) => rule.name));
+  const models = Object.fromEntries(Object.entries(raw.models).map(([model, values2]) => {
+    if (!model.trim() || model !== model.trim() || !isRecord2(values2) || !Object.keys(values2).length)
+      throw new ConfigError("Each model threshold entry needs an exact nonempty ID and rule thresholds");
+    const thresholds = Object.fromEntries(Object.entries(values2).map(([rule, value]) => {
+      if (!knownRules.has(rule) || typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1)
+        throw new ConfigError(`Invalid modelThresholds.models.${model}.${rule}`);
+      return [rule, value];
+    }));
+    return [model, thresholds];
+  }));
+  return { unknown: raw.unknown, models };
+}
+function rulesForReturnedModel(rules, policy, returnedModel) {
+  if (!policy) return rules;
+  if (!returnedModel) throw new Error("Model thresholds require the provider's returned model ID");
+  const thresholds = Object.hasOwn(policy.models, returnedModel) ? policy.models[returnedModel] : void 0;
+  if (!thresholds) {
+    if (policy.unknown === "unavailable")
+      throw new Error(`No threshold policy for returned model ${returnedModel}`);
+    return rules;
+  }
+  return rules.map((rule) => {
+    const threshold = Object.hasOwn(thresholds, rule.name) ? thresholds[rule.name] : void 0;
+    if (threshold === void 0) throw new Error(`Missing threshold for ${returnedModel}/${rule.name}`);
+    return { ...rule, threshold };
+  });
+}
 function readOpenRouterSettings(raw) {
   if (!isRecord2(raw)) throw new ConfigError("openrouter must be a mapping");
   const settings = {};
@@ -8246,6 +8281,8 @@ function validateConfigDocument(raw, warnings = []) {
         else throw new ConfigError(`invalid diagnostics.${setting}; expected enabled (boolean) or maxRequests (integer 1 to 500)`);
       }
       doc.diagnostics = settings;
+    } else if (key === "modelThresholds") {
+      doc.modelThresholds = readModelThresholds(value);
     } else if (key === "model") {
       if (typeof value !== "string" || value.trim() === "")
         throw new ConfigError("model must be a non-empty string");
@@ -8302,7 +8339,16 @@ function resolveConfig(doc) {
       threshold: override?.threshold ?? definition.threshold
     };
   });
+  if (doc.modelThresholds) {
+    for (const [model, thresholds] of Object.entries(doc.modelThresholds.models)) {
+      for (const rule of rules.filter((rule2) => rule2.enabled)) {
+        if (!Object.hasOwn(thresholds, rule.name))
+          throw new ConfigError(`modelThresholds.models.${model} lacks enabled rule ${rule.name}`);
+      }
+    }
+  }
   return {
+    ...doc.modelThresholds ? { modelThresholds: doc.modelThresholds } : {},
     provider: doc.provider ?? "typesafe",
     mode: doc.mode ?? "advisory",
     maxRequests: doc.maxRequests ?? 64,
@@ -8513,6 +8559,7 @@ async function runTypeSafe(request) {
   );
   return {
     model: result.model,
+    returnedModel: typeof result.model === "string" && result.model.trim() ? result.model : void 0,
     answers: result.answers,
     inputTokens: result.usage.input_tokens,
     outputTokens: result.usage.output_tokens,
@@ -8598,6 +8645,7 @@ async function runOpenRouter(request) {
     }
     return {
       model: typeof payload.model === "string" ? payload.model : request.model,
+      returnedModel: typeof payload.model === "string" && payload.model.trim() ? payload.model : void 0,
       answers: payload.answers,
       inputTokens: numberOr(
         payload.usage?.input_tokens ?? payload.usage?.prompt_tokens,
@@ -8614,6 +8662,7 @@ async function runOpenRouter(request) {
 }
 
 // src/render.ts
+var BASE_THRESHOLD_NOTICE = "The returned model has no fitted thresholds in this policy. This review uses the configured base thresholds.";
 function diagnosticDetails(finding) {
   const d = finding.diagnostic;
   if (!d) return [];
@@ -8645,6 +8694,8 @@ function renderPlainTable(outcome) {
   for (const f of outcome.coverage.files.filter((f2) => f2.status !== "reviewed" || f2.reason))
     lines.push(`${f.status}: ${f.path}: ${f.reason}`);
   lines.push(...outcome.coverage.warnings, ...outcome.errors);
+  if (outcome.thresholdSource === "base-fallback")
+    lines.push(BASE_THRESHOLD_NOTICE);
   if (outcome.diagnostics) lines.push(`Optional compatibility follow-up: ${outcome.diagnostics.health}; ${outcome.diagnostics.completed}/${outcome.diagnostics.eligible} findings assessed. Gate decisions are unchanged.`);
   return lines.join("\n");
 }
@@ -9075,6 +9126,7 @@ function parseSnapshot(text) {
     validateConfigDocument({
       provider: c.provider,
       model: c.model,
+      ...c.modelThresholds !== void 0 ? { modelThresholds: c.modelThresholds } : {},
       mode: c.mode,
       maxStateTokens: c.maxStateTokens,
       maxRequests: c.maxRequests,
@@ -9463,21 +9515,25 @@ async function runReview(input) {
     outcome.inputTokens += response.inputTokens;
     outcome.outputTokens += response.outputTokens;
     outcome.latencyMs += response.latencyMs;
+    if (config.modelThresholds && !response.returnedModel)
+      throw new Error("Model thresholds require the provider's returned model ID");
     if (resolvedModel && response.model !== resolvedModel)
       throw new Error(
         "The provider changed models during this review; pin a model and retry"
       );
     resolvedModel = response.model;
     outcome.model = response.model;
-    return response.answers;
+    return response;
   };
   const decisionsFor = async (candidate, rules) => {
     const state = buildState(safePr, candidate, scanned.files);
     if (estimateTokens(JSON.stringify(state)) > config.maxStateTokens)
       delete state.fileContext;
-    const answers = await requestAnswers(state, buildQuestions(rules));
+    const response = await requestAnswers(state, buildQuestions(rules));
+    const selected2 = rulesForReturnedModel(rules, config.modelThresholds, response.returnedModel);
+    if (config.modelThresholds && response.returnedModel) outcome.thresholdSource = Object.hasOwn(config.modelThresholds.models, response.returnedModel) ? "returned-model" : "base-fallback";
     const { patch: _, ...location } = candidate;
-    return evaluate(rules, answers, location);
+    return evaluate(selected2, response.answers, location);
   };
   const results = new Array(jobs.length);
   let next = 0;
@@ -9488,7 +9544,7 @@ async function runReview(input) {
         const decisions = await decisionsFor(candidate, rules);
         const borderline = rules.filter(
           (r) => r.gate && config.borderlineMargin > 0 && decisions.some(
-            (d) => d.name === r.name && d.value !== null && Math.abs(d.value - r.threshold) <= config.borderlineMargin
+            (d) => d.name === r.name && d.value !== null && Math.abs(d.value - d.threshold) <= config.borderlineMargin
           )
         );
         if (borderline.length) {
@@ -9620,7 +9676,7 @@ async function runReview(input) {
           throw new DiagnosticSkipped("Diagnostic evidence exceeds the state budget; no evidence was clipped");
         if (input.signal?.aborted) throw new Error("Review cancelled");
         summary.requests++;
-        return requestAnswers(state, questions);
+        return (await requestAnswers(state, questions)).answers;
       });
       diagnostic.reason = redactText(diagnostic.reason);
       finding.diagnostic = diagnostic;

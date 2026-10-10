@@ -66,6 +66,44 @@ function readRuleOverride(name, raw, warnings) {
     }
     return override;
 }
+function readModelThresholds(raw) {
+    if (!isRecord(raw) || Object.keys(raw).some(key => key !== "unknown" && key !== "models"))
+        throw new ConfigError("modelThresholds requires only unknown and models");
+    if (raw.unknown !== "unavailable" && raw.unknown !== "base-thresholds")
+        throw new ConfigError("modelThresholds.unknown must be unavailable or base-thresholds");
+    if (!isRecord(raw.models) || !Object.keys(raw.models).length)
+        throw new ConfigError("modelThresholds.models must contain at least one exact returned model ID");
+    const knownRules = new Set(RULE_DEFINITIONS.map(rule => rule.name));
+    const models = Object.fromEntries(Object.entries(raw.models).map(([model, values]) => {
+        if (!model.trim() || model !== model.trim() || !isRecord(values) || !Object.keys(values).length)
+            throw new ConfigError("Each model threshold entry needs an exact nonempty ID and rule thresholds");
+        const thresholds = Object.fromEntries(Object.entries(values).map(([rule, value]) => {
+            if (!knownRules.has(rule) || typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1)
+                throw new ConfigError(`Invalid modelThresholds.models.${model}.${rule}`);
+            return [rule, value];
+        }));
+        return [model, thresholds];
+    }));
+    return { unknown: raw.unknown, models };
+}
+export function rulesForReturnedModel(rules, policy, returnedModel) {
+    if (!policy)
+        return rules;
+    if (!returnedModel)
+        throw new Error("Model thresholds require the provider's returned model ID");
+    const thresholds = Object.hasOwn(policy.models, returnedModel) ? policy.models[returnedModel] : undefined;
+    if (!thresholds) {
+        if (policy.unknown === "unavailable")
+            throw new Error(`No threshold policy for returned model ${returnedModel}`);
+        return rules;
+    }
+    return rules.map(rule => {
+        const threshold = Object.hasOwn(thresholds, rule.name) ? thresholds[rule.name] : undefined;
+        if (threshold === undefined)
+            throw new Error(`Missing threshold for ${returnedModel}/${rule.name}`);
+        return { ...rule, threshold };
+    });
+}
 /** Validate the optional OpenRouter settings block. */
 function readOpenRouterSettings(raw) {
     if (!isRecord(raw))
@@ -126,6 +164,9 @@ export function validateConfigDocument(raw, warnings = []) {
                     throw new ConfigError(`invalid diagnostics.${setting}; expected enabled (boolean) or maxRequests (integer 1 to 500)`);
             }
             doc.diagnostics = settings;
+        }
+        else if (key === "modelThresholds") {
+            doc.modelThresholds = readModelThresholds(value);
         }
         else if (key === "model") {
             if (typeof value !== "string" || value.trim() === "")
@@ -191,7 +232,16 @@ export function resolveConfig(doc) {
             threshold: override?.threshold ?? definition.threshold,
         };
     });
+    if (doc.modelThresholds) {
+        for (const [model, thresholds] of Object.entries(doc.modelThresholds.models)) {
+            for (const rule of rules.filter(rule => rule.enabled)) {
+                if (!Object.hasOwn(thresholds, rule.name))
+                    throw new ConfigError(`modelThresholds.models.${model} lacks enabled rule ${rule.name}`);
+            }
+        }
+    }
     return {
+        ...(doc.modelThresholds ? { modelThresholds: doc.modelThresholds } : {}),
         provider: doc.provider ?? "typesafe",
         mode: doc.mode ?? "advisory",
         maxRequests: doc.maxRequests ?? 64,

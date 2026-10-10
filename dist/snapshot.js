@@ -194,6 +194,7 @@ export function parseSnapshot(text) {
     const config = resolveConfig(validateConfigDocument({
         provider: c.provider,
         model: c.model,
+        ...(c.modelThresholds !== undefined ? { modelThresholds: c.modelThresholds } : {}),
         mode: c.mode,
         maxStateTokens: c.maxStateTokens,
         maxRequests: c.maxRequests,
